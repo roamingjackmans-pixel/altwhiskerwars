@@ -194,7 +194,7 @@ export class Match {
     let last = performance.now(), acc = 0;
     this.metro = makeMetronome(25, () => {
       const now = performance.now();
-      if (this.paused || this.hold) { last = now; return; }
+      if (this.paused || this.hold || this.hostAway) { last = now; return; }
       acc += Math.min(1.5, (now - last) / 1000);
       last = now;
       let steps = 0;
@@ -247,6 +247,8 @@ export class Match {
   get canPause() { return this.role === 'local'; }
   setPaused(v) { if (this.canPause) this.paused = !!v; }
   netPause(v) { this.paused = !!v; }
+  /** host: my app was covered, so the battle (which runs here) waits for everyone until I'm back */
+  setHostAway(v) { this.hostAway = !!v; }
   currentSnap(seat) { const s = seat != null && this.full ? maskSnap(this.full, seat) : this.interp.latest; return { t: s.t, b: s.b, s: s.s, p: s.p, e: [] }; }
 
   // network entry points

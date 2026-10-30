@@ -167,6 +167,16 @@ export class Hud {
   }
 
   setPct(p) { this.root.querySelectorAll('.pct-btn').forEach(b => b.classList.toggle('on', +b.dataset.p === p)); }
+  /** a player whose app is covered or whose connection dropped: 📵 on their card (with seconds left, if given) */
+  setAway(seat, v) {
+    for (const c of this.els.cards) {
+      if (+c.dataset.o !== seat) continue;
+      c.classList.toggle('away', v !== false && v != null);
+      let b = c.querySelector('.away-tag');
+      if (!b) { b = el('div', 'away-tag'); c.appendChild(b); }
+      b.textContent = typeof v === 'number' ? `📵 ${v}s` : '📵 away';
+    }
+  }
   setAll(on) {
     const b = this.root.querySelector('.all-btn');
     if (b) b.classList.toggle('on', on);

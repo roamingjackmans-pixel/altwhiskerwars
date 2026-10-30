@@ -806,75 +806,157 @@ function startGuest(msg) {
 function wireSessionToMatch(m) {
   const S = session;
   S.inMatch = true;
-  const GRACE = 20;
+  // How long players get to come back:
+  //  - LOST: their connection dropped. 2 players: the battle pauses and waits. 3-4 players: everyone else keeps
+  //    playing while the dropped player gets the time to reconnect.
+  //  - AWAY: their app was covered or paused (a notification pop-up, the edge panel, another app...) and their
+  //    phone said so. Nobody else's battle pauses; they just get a minute to come back.
+  //  - HOST_AWAY: the host's app was covered. The battle runs on the host's phone, so it pauses for everyone
+  //    (no one gets a free hit) until the host is back.
+  const LOST = 20, LOST_MANY = 30, AWAY = 60, HOST_AWAY = 120;
+  const name = k => esc((m.info.players[k] || {}).name || 'A player');
+  const many = (m.info.players || []).length > 2;
   let timer = null;
-  const offs = [S.on('snap', s => m.pushRemoteSnap(s))];
+  let lastSnap = Date.now();
+  const offs = [S.on('snap', s => { lastSnap = Date.now(); m.pushRemoteSnap(s); })];
   if (S.isHost) {
-    // host: pause and wait for a dropped player to come back. 2 players: if they don't, you win.
-    // 3-4 players: if they don't, they're out (their buildings go stray) and the battle carries on.
-    const waits = new Map();   // seat -> seconds left
-    const many = (m.info.players || []).length > 2;
+    const waits = new Map();   // seat -> { left: seconds, kind: 'lost' | 'away', paused }
     const show = () => {
-      if (!waits.size) { m.hud && m.hud.waiting(null); return; }
-      const names = [...waits.keys()].map(k => esc((m.info.players[k] || {}).name || 'A player')).join(', ');
-      const left = Math.max(...waits.values());
-      m.hud && m.hud.waiting(`${names} lost connection...<br>Waiting <b>${left}s</b> for them to come back`);
+      for (const [k, w] of waits) m.hud && m.hud.setAway(k, w.left);
+      const paused = [...waits].filter(([, w]) => w.paused);
+      if (!paused.length) { if (!m.hostAway) m.hud && m.hud.waiting(null); return; }
+      const left = Math.max(...paused.map(([, w]) => w.left));
+      m.hud && m.hud.waiting(`${paused.map(([k]) => name(k)).join(', ')} lost connection...<br>Waiting <b>${left}s</b> for them to come back`);
+    };
+    const settle = () => {
+      if (![...waits.values()].some(w => w.paused)) m.netPause(false);
+      show();
+      if (waits.size && !timer) timer = setTimeout(tick, 1000);
     };
     const tick = () => {
       timer = null;
       if (m.over) return;
-      for (const [k, s] of [...waits]) {
-        if (s > 0) { waits.set(k, s - 1); continue; }
+      // (a host whose own app is covered doesn't count the others' time down)
+      if (!m.hostAway) for (const [k, w] of [...waits]) {
+        if (w.left > 0) { w.left--; continue; }
         waits.delete(k);
+        m.hud && m.hud.setAway(k, false);
         if (!many) { m.hud && m.hud.waiting(null); m.netPause(false); m.forceEnd(S.me, 'disconnect'); return; }
         if (m.game && !m.game.over) m.game.eliminate(k, 'disconnect');
       }
-      show();
-      if (waits.size) timer = setTimeout(tick, 1000); else m.netPause(false);
+      settle();
     };
     const lost = seat => {
-      if (m.over || seat == null || waits.has(seat) || !m.game || !(m.game.players[seat] || {}).alive) return;
-      waits.set(seat, GRACE);
-      m.netPause(true);
-      show();
-      if (!timer) timer = setTimeout(tick, 1000);
+      if (m.over || seat == null || !m.game || !(m.game.players[seat] || {}).alive) return;
+      const w = waits.get(seat);
+      if (w) return;   // already waiting (a player who stepped away usually loses their connection too)
+      waits.set(seat, { left: many ? LOST_MANY : LOST, kind: 'lost', paused: !many });
+      if (!many) m.netPause(true);
+      else m.hud && m.hud.toast(`📶 <b>${name(seat)}</b> lost connection. The battle carries on.`, 'theirs', seat);
+      settle();
+    };
+    const away = (seat, v) => {
+      if (m.over) return;
+      if (seat === S.me) {
+        // my own app was covered: pause the battle for everyone until I'm back
+        if (v) { m.setHostAway(true); return; }
+        m.hud && m.hud.waiting('Welcome back! Resuming...');
+        setTimeout(() => { if (S.away.has(S.me)) return; m.setHostAway(false); show(); }, 1000);
+        return;
+      }
+      if (!m.game || !(m.game.players[seat] || {}).alive) return;
+      if (v) {
+        const w = waits.get(seat);
+        if (w && w.kind === 'away') return;
+        waits.set(seat, { left: AWAY, kind: 'away', paused: false });
+        m.hud && m.hud.toast(`📵 <b>${name(seat)}</b> stepped away. The battle carries on: they have ${AWAY}s to come back.`, 'theirs', seat);
+      } else if (waits.has(seat)) {
+        waits.delete(seat);
+        m.hud && m.hud.setAway(seat, false);
+        m.hud && m.hud.toast(`😺 <b>${name(seat)}</b> is back!`, 'good', seat);
+      }
+      settle();
     };
     offs.push(
       S.on('cmd', (c, seat) => m.remoteCommand(c, seat)),
       S.on('peer-leave', lost),
+      S.on('away', away),
       S.on('guest-resume', (seat, slot) => {
         if (m.over) return;
         S.send({ type: 'start', info: m.info, snap: m.currentSnap(seat), resume: true }, slot);
-        if (!waits.has(seat)) return;
+        const w = waits.get(seat);
+        if (!w) return;
         waits.delete(seat);
-        toast(`😺 ${esc((m.info.players[seat] || {}).name || 'Your friend')} reconnected!`, 'good');
-        if (!waits.size) {
-          clearTimeout(timer); timer = null;
+        m.hud && m.hud.setAway(seat, false);
+        toast(`😺 ${name(seat)} reconnected!`, 'good');
+        if (w.paused && ![...waits.values()].some(x => x.paused)) {
           m.hud && m.hud.waiting('Everyone is back! Resuming...');
-          setTimeout(() => { if (!waits.size) { m.hud && m.hud.waiting(null); m.netPause(false); } }, 1500);
-        } else show();
+          setTimeout(() => { if (![...waits.values()].some(x => x.paused)) { m.netPause(false); show(); } }, 1500);
+          return;
+        }
+        settle();
       }),
       S.on('disconnected', () => { if (!m.over) m.forceEnd(-1, 'disconnect'); }),
+      () => clearTimeout(timer),
     );
+    // anyone (me included) whose app was already covered when the battle started
+    for (const k of [...S.away]) away(k, true);
   } else {
-    // guest: try to get back into the room
-    let trying = false;
+    // guest: try to get back into the room. While the host has stepped away we wait much longer.
+    let trying = false, hostAwayAt = 0, hostTimer = null;
+    const hostAway = () => S.away.has(0);
+    const hostWait = () => { const left = Math.max(0, HOST_AWAY - Math.round((Date.now() - hostAwayAt) / 1000)); return left; };
     const lost = async () => {
       if (m.over || trying) return;
       trying = true;
       const t0 = Date.now();
-      while (!m.over && Date.now() - t0 < GRACE * 1000) {
-        m.hud && m.hud.waiting('Connection lost... reconnecting (' + Math.max(0, GRACE - Math.round((Date.now() - t0) / 1000)) + 's)');
+      const limit = () => (hostAway() ? hostWait() * 1000 + (Date.now() - t0) : LOST_MANY * 1000);
+      while (!m.over && Date.now() - t0 < limit()) {
+        m.hud && m.hud.waiting(hostAway()
+          ? `⏸ <b>${name(0)}</b> (the host) stepped away.<br>The battle is paused until they're back (${hostWait()}s)`
+          : 'Connection lost... reconnecting (' + Math.max(0, Math.round((limit() - (Date.now() - t0)) / 1000)) + 's)');
         try { await S.rejoin(); m.hud && m.hud.waiting('Reconnected! Waiting for the host...'); return; }
-        catch (e) { await new Promise(r => setTimeout(r, 1500)); }
+        catch (e) { await new Promise(r => setTimeout(r, hostAway() ? 3000 : 1500)); }
       }
       trying = false;
       m.hud && m.hud.waiting(null);
       if (!m.over) m.forceEnd(-1, 'disconnect');
     };
+    const away = (seat, v) => {
+      if (m.over) return;
+      if (seat !== 0) {
+        if (seat === S.me) return;
+        m.hud && m.hud.setAway(seat, v ? true : false);
+        if (v) m.hud && m.hud.toast(`📵 <b>${name(seat)}</b> stepped away. The battle carries on.`, 'theirs', seat);
+        else m.hud && m.hud.toast(`😺 <b>${name(seat)}</b> is back!`, 'good', seat);
+        return;
+      }
+      // the host's app was covered: their phone runs the battle, so it's paused for everyone
+      clearInterval(hostTimer); hostTimer = null;
+      m.hud && m.hud.setAway(0, v ? true : false);
+      if (v) {
+        hostAwayAt = Date.now();
+        const draw = () => {
+          if (m.over || !hostAway()) { clearInterval(hostTimer); hostTimer = null; return; }
+          if (!trying) m.hud && m.hud.waiting(`⏸ <b>${name(0)}</b> (the host) stepped away.<br>The battle is paused until they're back (${hostWait()}s)`);
+          if (hostWait() <= 0) { clearInterval(hostTimer); hostTimer = null; if (!trying) { m.hud && m.hud.waiting(null); m.forceEnd(-1, 'disconnect'); } }
+        };
+        draw();
+        hostTimer = setInterval(draw, 1000);
+      } else if (!trying) {
+        m.hud && m.hud.waiting(null);
+        m.hud && m.hud.toast(`😺 <b>${name(0)}</b> is back! Resuming...`, 'good', 0);
+      }
+    };
     offs.push(
       S.on('peer-leave', lost),
       S.on('disconnected', lost),
+      S.on('away', away),
+      // my own app was covered and came back: if the host stopped hearing from me, reconnect straight away
+      S.on('back', () => {
+        const at = Date.now();
+        setTimeout(() => { if (!m.over && !trying && !hostAway() && lastSnap < at) lost(); }, 4000);
+      }),
       S.on('resume', msg => {
         if (m.over) return;
         trying = false;
@@ -882,7 +964,10 @@ function wireSessionToMatch(m) {
         const nm = beginMatch({ ...m.opts, info: msg.info, firstSnap: msg.snap, countdown: 0 });
         wireSessionToMatch(nm);
       }),
+      () => clearInterval(hostTimer),
     );
+    // joined (or rejoined) while the host was already away
+    if (hostAway()) away(0, true);
   }
   m._offs = offs;
 }

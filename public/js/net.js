@@ -109,6 +109,9 @@ export class WSTransport extends Emitter {
   }
   send(d, to) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(to ? { t: 'msg', d, to } : { t: 'msg', d })); }
   get connected() { return !!this.ws && this.ws.readyState === 1; }
+  // (the game server keeps sockets alive by itself)
+  setPatience() { }
+  refresh() { }
   close() { const ws = this.ws; this.ws = null; if (ws) { try { ws.send(JSON.stringify({ t: 'leave' })); } catch {} try { ws.close(); } catch {} } }
 }
 
@@ -255,6 +258,13 @@ export class P2PTransport extends Emitter {
     if (to) out(this.conns.get(to)); else for (const c of this.conns.values()) out(c);
   }
   get connected() { return this.isHost ? [...this.conns.values()].some(c => c.open) : !!this.conn && this.conn.open; }
+  /**
+   * How long a relayed connection may stay silent before it counts as gone: longer while the other side has
+   * stepped away (its app was covered or paused). Host: per guest slot; guest: the link to the host. null = normal.
+   */
+  setPatience(ms, slot) { const c = this.isHost ? this.conns.get(slot) : this.conn; if (c && c.relay) c.patience = ms || 0; }
+  /** guest: back from being paused, don't count our own silence against the host */
+  refresh() { if (this.conn && this.conn.refresh) this.conn.refresh(); }
   close() {
     try { this.hub && this.hub.stop(); } catch {}
     this.hub = null;

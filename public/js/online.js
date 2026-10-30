@@ -3,9 +3,12 @@
 // transport numbers guests by slot and the session keeps track of which slot sits in which seat.
 import { hostRoom, joinRoom } from './net.js';
 import { publicProfile, profile } from './profile.js';
+import { onAway, onBack, isAway } from './lifecycle.js';
 
 const PROTO = 2;
 const SEATS = 4;
+// a relayed connection to a player (or host) who stepped away may stay silent this long before it counts as gone
+export const AWAY_PATIENCE = 125000;
 
 export class OnlineSession {
   constructor(transport, isHost, code) {
@@ -16,6 +19,7 @@ export class OnlineSession {
     this.pings = new Map();            // host: round trip per guest slot
     this.slots = new Map();            // host: transport slot -> seat
     this.pids = new Map();             // host: seat -> player id (to give a reconnecting player their seat back)
+    this.away = new Set();             // seats whose app is covered or paused right now
     this.closed = false;
     const players = Array(SEATS).fill(null);
     players[0] = isHost ? publicProfile() : null;
@@ -23,6 +27,11 @@ export class OnlineSession {
     this.wire(transport);
     if (!isHost) this.send({ type: 'hello', p: publicProfile(), v: PROTO });
     this.pingTimer = setInterval(() => { if (this.peerHere) this.send({ type: 'ping', t: performance.now() }); }, 2000);
+    // this phone's app got covered or paused, or came back: tell the others
+    this.offLife = [
+      onAway(() => this.stepAway(true)),
+      onBack(() => { try { this.t.refresh && this.t.refresh(); } catch { } this.stepAway(false); this.emit('back'); }),
+    ];
   }
   /** host: is anyone connected? guest: always (it talks to the host) */
   get peerHere() { return this.isHost ? this.slots.size > 0 : !this.closed; }
@@ -49,6 +58,8 @@ export class OnlineSession {
     this.t = t;
     this.wire(t);
     this.send({ type: 'hello', p: publicProfile(), v: PROTO, resume: true });
+    // reconnected while the app is still covered: say so again
+    if (isAway()) this.send({ type: 'away', v: 1 });
   }
   static async host() { const { transport, code } = await hostRoom(); return new OnlineSession(transport, true, code); }
   static async join(code) { const t = await joinRoom(code, profile().id); return new OnlineSession(t, false, code); }
@@ -73,7 +84,25 @@ export class OnlineSession {
       case 'ping': this.send({ type: 'pong', t: m.t }); break;
       case 'pong': this.ping = Math.round(performance.now() - m.t); break;
       case 'full': this.emit('error', new Error('That room is already full')); break;
+      case 'away': this.setAwayFlag(m.seat | 0, !!m.v); break;
     }
+  }
+  /**
+   * This phone stepped away (its app was covered or paused) or came back. Guests tell the host; the host tells
+   * everyone (about itself or about a guest).
+   */
+  stepAway(v) {
+    if (this.closed) return;
+    if (this.isHost) { this.setAwayFlag(0, v); this.send({ type: 'away', seat: 0, v: v ? 1 : 0 }); }
+    else this.send({ type: 'away', v: v ? 1 : 0 });
+    if (!v) this.send({ type: 'ping', t: performance.now() });
+  }
+  setAwayFlag(seat, v) {
+    // a guest waits longer for a host that stepped away before deciding the connection is gone
+    if (!this.isHost && seat === 0 && this.t.setPatience) this.t.setPatience(v ? AWAY_PATIENCE : 0);
+    if (v === this.away.has(seat)) return;
+    if (v) this.away.add(seat); else this.away.delete(seat);
+    this.emit('away', seat, v);
   }
   onGuestMsg(m, from) {
     const L = this.lobby;
@@ -94,7 +123,13 @@ export class OnlineSession {
         L.players[s] = p;
         L.ready[s] = false;
         this.send({ type: 'welcome', seat: s }, from);
-        if (this.inMatch) { L.phase = 'match'; this.emit('guest-resume', s, from); break; }
+        if (this.inMatch) {
+          L.phase = 'match';
+          // a player reconnecting is back, whether or not they said they'd stepped away
+          if (this.away.has(s)) { this.setAwayFlag(s, false); this.send({ type: 'away', seat: s, v: 0 }); }
+          this.emit('guest-resume', s, from);
+          break;
+        }
         this.broadcast();
         this.emit('guest-hello', p, s);
         break;
@@ -110,6 +145,13 @@ export class OnlineSession {
         this.broadcast();
         break;
       case 'cmd': if (seat != null) this.emit('cmd', m.c, seat); break;
+      case 'away':
+        if (seat == null) return;
+        // give a player who stepped away more time before their connection counts as gone
+        if (this.t.setPatience) this.t.setPatience(m.v ? AWAY_PATIENCE : 0, from);
+        this.setAwayFlag(seat, !!m.v);
+        this.send({ type: 'away', seat, v: m.v ? 1 : 0 });
+        break;
       case 'lemote':
         if (seat == null) return;
         this.emit('lemote', m.id, seat);
@@ -181,6 +223,7 @@ export class OnlineSession {
   close() {
     this.closed = true;
     clearInterval(this.pingTimer);
+    for (const f of this.offLife || []) f();
     try { this.t.close(); } catch { }
   }
 }

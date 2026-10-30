@@ -213,7 +213,7 @@ export class RelayHost {
       const now = Date.now();
       for (const [id, c] of this.conns) {
         if (!c.open) this.conns.delete(id);
-        else if (now - c.seen > IDLE_MS) { c._gone(); this.conns.delete(id); }
+        else if (now - c.seen > (c.patience || IDLE_MS)) { c._gone(); this.conns.delete(id); }
       }
     }, 3000);
     return this;
@@ -335,6 +335,8 @@ export class RelayGuest extends Conn {
   }
 
   get via() { return this.link ? this.link.broker.name : null; }
+  /** back from being paused or frozen: the silence was ours, not the host's, so start the clock again */
+  refresh() { this._lastIn = Date.now(); }
 
   _say(link, m) { link.publish(hostTopic(this.code), JSON.stringify({ c: this.id, m })); }
 
@@ -349,7 +351,7 @@ export class RelayGuest extends Conn {
       for (const l of this.links) if (l !== link) l.close();
       this.links = [link];
       // the host talks at least every few seconds; a long silence means it's gone
-      this._watch = setInterval(() => { if (Date.now() - this._lastIn > IDLE_MS) this._gone(); }, 3000);
+      this._watch = setInterval(() => { if (Date.now() - this._lastIn > (this.patience || IDLE_MS)) this._gone(); }, 3000);
     }
     if (msg.hs !== this.hs || link !== this.link) return;
     this._lastIn = Date.now();

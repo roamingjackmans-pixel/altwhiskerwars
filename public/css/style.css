@@ -673,3 +673,6 @@ table.stats td:not(:first-child), table.stats th { text-align: center; font-weig
 .purr.locked .pss { filter: drop-shadow(0 0 4px #9fe3ff); }
 .purr.locked::after { content: '🔒'; font-size: 11px; margin-left: 2px; }
 .tt-lv { font-size: 11px; background: var(--gold); color: #4a3200; border-radius: 6px; padding: 0 5px; vertical-align: 2px; }
+.pcard .away-tag { display: none; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); background: #3a2a48; color: #fff; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; white-space: nowrap; z-index: 4; }
+.pcard.away .away-tag { display: block; }
+.pcard.away .portrait { filter: grayscale(.8) brightness(.8); }
