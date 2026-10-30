@@ -5,11 +5,7 @@
   "description": "Real-time cat kingdom strategy battles",
   "start_url": "./",
   "scope": "./",
-  "display": "fullscreen",
-  "display_override": [
-    "fullscreen",
-    "standalone"
-  ],
+  "display": "standalone",
   "orientation": "any",
   "background_color": "#2b1d3a",
   "theme_color": "#2b1d3a",

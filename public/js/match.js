@@ -184,7 +184,7 @@ export class Match {
       if (!this.running) return;
       if (this.role !== 'guest') this.startSim();
       if (!this.attract) audio.music('battle');
-      if (this.phone && this.hud) this.hud.coach();
+      if (this.phone && this.hud) { this.hud.coach(); setTimeout(() => this.hud && this.running && this.hud.fsTip(), 1500); }
     };
     if (countdown > 0 && !this.attract) {
       this.hud.countdown(countdown, go);

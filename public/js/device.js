@@ -65,7 +65,12 @@ export function vibrate(pattern) {
 // iPhones ignore user-scalable=no; stop pinch-zoom from grabbing the battlefield
 document.addEventListener('gesturestart', e => e.preventDefault());
 
-/** Android browsers hide their address bar in full screen. iPhones ignore this (Add to Home Screen does it there). */
+/**
+ * Android browsers hide their address bar in full screen. iPhones ignore this (Add to Home Screen does it there).
+ * Only for battles: full screen also hides the phone's own Home / Back buttons, and on phones that use the three
+ * buttons (not gestures) a swipe only shows them for a moment. So battles leave full screen when they end, and
+ * the battle menu has an "Exit full screen" button.
+ */
 export function enterFullscreen() {
   try {
     if (!isPhone() || !setting('fullscreen', true)) return;
@@ -74,6 +79,11 @@ export function enterFullscreen() {
     el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
   } catch { /* not allowed */ }
 }
+/** Back to the normal screen, with the phone's Home / Back buttons. */
+export function exitFullscreen() {
+  try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch { /* not allowed */ }
+}
+export const inFullscreen = () => !!document.fullscreenElement;
 
 let lock = null;
 /** Stops the screen dimming mid-battle. */

@@ -3,6 +3,7 @@ import { HERO_BY_ID, HEROES, skillAt, BUILDINGS, CONVERT_COST, EMOTES, MAX_CATNI
 import { heroPortraitURL } from './art.js';
 import { audio } from './audio.js';
 import { profile, setSetting, save as saveProfile } from './profile.js';
+import { exitFullscreen, inFullscreen } from './device.js';
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const fmtTime = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
@@ -184,6 +185,13 @@ export class Hud {
     else if (this.hintKind === 'all') this.hintMsg(null);
   }
 
+  /** first full-screen battle: how to get the phone's own buttons back */
+  fsTip() {
+    const p = profile();
+    if (p.fsTip || !inFullscreen()) return;
+    p.fsTip = 1; saveProfile();
+    this.toast(`⛶ Full screen battle! To get your phone's Home and Back buttons, tap <b>☰</b> then <b>Exit full screen</b>.`);
+  }
   /** first few phone battles: a one-line reminder of how to send cats */
   coach() {
     const p = profile();
@@ -512,6 +520,7 @@ export class Hud {
         <div>⭐ <b>Purr Power</b> makes your whole army tougher. Don't attack into a rival with more stars!</div>
         <div>Enemy cat counts are hidden (<b>?</b>). Only some heroes have a skill that shows them</div>`}
       </div>
+      ${inFullscreen() ? '<button class="btn p-exitfs">⛶ Exit full screen<small>brings back your phone&#39;s Home and Back buttons</small></button>' : ''}
       <button class="btn danger p-surrender">🏳️ Surrender</button>
     </div>`;
     p.classList.remove('hidden');
@@ -524,6 +533,8 @@ export class Hud {
       ev.target.textContent = on ? '🎵 Music: on' : '🎵 Music: off';
     };
     p.querySelector('.p-sound').onclick = ev => { this.toggleMute(); ev.target.textContent = audio.muted ? '🔇 Sound: off' : '🔊 Sound: on'; };
+    const fsb = p.querySelector('.p-exitfs');
+    if (fsb) fsb.onclick = () => { exitFullscreen(); fsb.remove(); this.toast('⛶ Full screen off. Turn it off for good in Settings.'); };
     p.querySelector('.p-surrender').onclick = ev => {
       if (ev.target.dataset.sure) { close(); this.m.surrender(); }
       else { ev.target.dataset.sure = 1; ev.target.textContent = 'Tap again to give up'; }

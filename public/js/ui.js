@@ -12,7 +12,7 @@ import { heroPortraitURL, catPreviewURL, buildingPreviewURL } from './art.js';
 import { normalizeObstacles } from '../shared/nav.js';
 import { maskSnap } from '../shared/game.js';
 import { initFriends, presence, friends, addFriend, removeFriend, isFriend, myFriendCode, fmtFriendCode, cleanFriendCode, onFriends, setBusyCheck, recentPlayers, noteRecent, beReachable } from './friends.js';
-import { isPhone, applyDeviceClass, enterFullscreen, keepAwake, deviceSummary, desktopSiteMode } from './device.js';
+import { isPhone, applyDeviceClass, enterFullscreen, exitFullscreen, keepAwake, deviceSummary, desktopSiteMode } from './device.js';
 import { BUILD, isDev, versionLabel, fetchLatest, isNewer, reloadTo } from './update.js';
 import { Tutorial, TUTORIAL_MAP } from './tutorial.js';
 import { isInstalled, promptInstall, installSteps, onInstallChange } from './install.js';
@@ -447,7 +447,7 @@ function playTutorial() {
   m.wakeAI = () => { m.ais = ais; };
   const t = new Tutorial(m, () => {
     // skipped: end the practice battle and go back to the menu
-    if (match === m) { keepAwake.wanted = false; keepAwake(false); if (m._offs) m._offs.forEach(f => f()); m.stop(); match = null; }
+    if (match === m) { keepAwake.wanted = false; keepAwake(false); exitFullscreen(); if (m._offs) m._offs.forEach(f => f()); m.stop(); match = null; }
     go('home');
   });
   m.tutorial = t;
@@ -998,6 +998,8 @@ function beginMatch(opts) {
 
 function onMatchEnd(m, opts, res) {
   keepAwake.wanted = false; keepAwake(false);
+  // the menus come back with the phone's own Home / Back buttons
+  exitFullscreen();
   if (m._offs) m._offs.forEach(f => f());
   if (session) session.inMatch = false;
   m.stop();
@@ -1353,7 +1355,7 @@ SCREENS.settings = () => {
         <option value="phone" ${s.layout === 'phone' ? 'selected' : ''}>Phone</option>
         <option value="desktop" ${s.layout === 'desktop' ? 'selected' : ''}>Computer / tablet</option></select></label>
       <label>📳 Vibration on phones <input type="checkbox" class="c-vib" ${s.vibrate !== false ? 'checked' : ''}></label>
-      <label>⛶ Full screen battles on phones <input type="checkbox" class="c-fs" ${s.fullscreen !== false ? 'checked' : ''}></label>
+      <label>⛶ Full screen battles on phones <small class="muted">(hides the phone's Home / Back buttons until the battle ends)</small> <input type="checkbox" class="c-fs" ${s.fullscreen !== false ? 'checked' : ''}></label>
       <div class="net-info muted small"></div>
       <div class="muted small">${versionBadge()}</div>
       <hr>
