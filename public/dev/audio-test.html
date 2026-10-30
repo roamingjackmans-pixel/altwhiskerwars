@@ -1,0 +1,18 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Audio Test</title>
+<style>body{font-family:sans-serif;background:#222;color:#eee;padding:16px}button{margin:3px;padding:6px 10px}h3{margin:12px 0 4px}</style>
+</head><body>
+<h2>Whisker Wars audio test</h2>
+<button id="init">init()</button> <button id="mute">toggle mute</button>
+<h3>SFX</h3><div id="sfx"></div>
+<h3>Music</h3><div id="mus"></div>
+<pre id="log"></pre>
+<script type="module">
+import { audio } from '../js/audio.js';
+window.audio = audio;
+const log = s => { document.getElementById('log').textContent += s + '\n'; };
+document.getElementById('init').onclick = () => { audio.init(); setTimeout(() => log('ready=' + audio.ready), 300); };
+document.getElementById('mute').onclick = () => { audio.setMuted(!audio.muted); log('muted=' + audio.muted); };
+for (const n of audio._sfxNames) { const b = document.createElement('button'); b.textContent = n; b.onclick = () => { audio.init(); audio.play(n); }; document.getElementById('sfx').appendChild(b); }
+for (const n of ['menu', 'battle', 'tense', 'victory', 'defeat', null]) { const b = document.createElement('button'); b.textContent = String(n); b.onclick = () => { audio.init(); audio.music(n); }; document.getElementById('mus').appendChild(b); }
+</script></body></html>

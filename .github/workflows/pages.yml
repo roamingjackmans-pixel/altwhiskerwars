@@ -1,0 +1,43 @@
+# Publishes the public/ folder to GitHub Pages on every push to main.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # full history: the version number counts commits
+      - uses: actions/configure-pages@v5
+      # Pages only serves static files, so play peer-to-peer there.
+      # A custom wss:// server URL in config.js is left alone.
+      - name: Use peer-to-peer mode
+        run: |
+          sed -i "s/server: 'auto'/server: 'p2p'/" public/config.js
+          grep -n "server:" public/config.js
+      # Version stamp for the home screen, and build-unique file URLs so phones never run stale code.
+      - name: Stamp version
+        run: |
+          node tools/stamp-build.mjs public "${GITHUB_SHA::7}"
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: public
+      - id: deployment
+        uses: actions/deploy-pages@v4

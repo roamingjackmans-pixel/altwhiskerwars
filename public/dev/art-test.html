@@ -1,0 +1,90 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Art Test</title>
+<style>
+  body { background:#2a2238; color:#eee; font:13px system-ui, sans-serif; margin:12px; }
+  h2 { margin:18px 0 6px; font-size:15px; color:#ffd36b; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  .cell { text-align:center; font-size:11px; }
+  canvas { background:#7cc35a; border-radius:6px; }
+  canvas.dark { background:#3b3350; }
+  img { background:#3b3350; border-radius:6px; }
+  #err { color:#ff8080; white-space:pre; }
+  .nav a { color:#9fd0ff; margin-right:10px; }
+</style></head>
+<body>
+<div class="nav"><a href="#cats">cats</a><a href="#hats">hats</a><a href="#bld">buildings</a><a href="#por">portraits</a><a href="#bg">backgrounds</a></div>
+<div id="err"></div>
+<h2 id="cats">Cats: every fur (owner 0, frames 0-3) at 3x, plus real size</h2><div class="row" id="cats1"></div>
+<h2 id="hats">Hats (ginger, owner 1)</h2><div class="row" id="hats1"></div>
+<h2>Previews (catPreviewURL)</h2><div class="row" id="prev"></div>
+<h2>In-game scale squad (1.1 px/unit)</h2><canvas id="squad" width="700" height="120"></canvas>
+<h2 id="bld">Buildings (animated)</h2><canvas id="bld1" width="1500" height="900"></canvas>
+<h2>Building previews</h2><div class="row" id="bprev"></div>
+<h2 id="por">Hero portraits</h2><div class="row" id="por1"></div>
+<h2 id="bg">Backgrounds (with ambient)</h2><div class="row" id="bg1"></div>
+<script type="module">
+const err = document.getElementById('err');
+window.addEventListener('error', e => err.textContent += e.message + '\n');
+const A = await import('../js/art.js?v=' + Date.now()).catch(e => { err.textContent += e.stack; throw e; });
+const D = await import('../shared/data.js');
+const $ = id => document.getElementById(id);
+function cell(parent, el, label) { const d = document.createElement('div'); d.className = 'cell'; d.appendChild(el); d.appendChild(document.createElement('br')); d.appendChild(document.createTextNode(label)); parent.appendChild(d); return d; }
+
+// cats
+for (const f of D.FURS) {
+  const c = document.createElement('canvas'); c.width = 4 * 40 * 2.2 + 60; c.height = 44 * 2.2;
+  const x = c.getContext('2d');
+  for (let fr = 0; fr < 4; fr++) { const s = A.getCatSprite(f.id, 'none', 0, fr); x.drawImage(s.canvas, fr * 40 * 2.2, 0, s.w * 2.2, s.h * 2.2); }
+  const s = A.getCatSprite(f.id, 'none', 0, 0); x.drawImage(s.canvas, 4 * 88 + 10, 50, s.w, s.h);
+  cell($('cats1'), c, f.id);
+}
+for (const h of D.HATS) {
+  const c = document.createElement('canvas'); c.width = 40 * 3; c.height = 44 * 3;
+  const s = A.getCatSprite(h.id === 'none' ? 'gray' : 'ginger', h.id, 1, 0); c.getContext('2d').drawImage(s.canvas, 0, 0, s.w * 3, s.h * 3);
+  cell($('hats1'), c, h.id);
+}
+const furs = ['ginger', 'tuxedo', 'calico', 'siamese', 'persian', 'galaxy', 'golden', 'void'];
+const hats = ['crown', 'wizard', 'party', 'viking', 'halo', 'cowboy', 'flower', 'pirate'];
+furs.forEach((f, i) => { const im = new Image(); im.src = A.catPreviewURL(f, hats[i], 96, i % 2); cell($('prev'), im, f + '+' + hats[i]); });
+// squad
+{ const c = $('squad'), x = c.getContext('2d');
+  let t = 0; const step = () => { t += 1/60; x.clearRect(0, 0, c.width, c.height); x.save(); x.scale(1.1, 1.1);
+    for (let i = 0; i < 14; i++) { const fr = Math.floor(t * 8 + i) % 4; const s = A.getCatSprite(i % 2 ? 'ginger' : 'tuxedo', i % 3 ? 'none' : 'party', i < 7 ? 0 : 1, fr);
+      const px = 40 + i * 30 + (t * 20) % 30, py = 60 + (i % 3) * 14; if (i >= 7) { x.save(); x.translate(px, py); x.scale(-1, 1); x.drawImage(s.canvas, -s.ax, -s.ay, s.w, s.h); x.restore(); } else x.drawImage(s.canvas, px - s.ax, py - s.ay, s.w, s.h); }
+    x.restore(); requestAnimationFrame(step); }; step(); }
+// buildings
+if (A.drawBuilding) {
+  const c = $('bld1'), x = c.getContext('2d');
+  const list = [];
+  const types = ['cottage', 'tower', 'forge', 'garden', 'cattree'];
+  let row = 0;
+  for (const owner of [0, 1, -1]) {
+    let col = 0;
+    for (const t of types) { const B = D.BUILDINGS[t]; for (let l = 1; l <= B.maxLevel; l++) { list.push({ x: 60 + col * 96, y: 190 + row * 270, type: t, level: l, owner, radius: B.radius[l - 1] * 0.78, flags: 0, hover: false, hit: 0 }); col++; } }
+    row++;
+  }
+  const t0 = performance.now();
+  const step = () => { const t = (performance.now() - t0) / 1000; x.clearRect(0, 0, c.width, c.height);
+    x.save(); x.scale(1.0, 1.0);
+    for (const b of list) { b.hit = (Math.floor(t) % 6 === 0 && b.level === 2) ? Math.max(0, 1 - (t % 1) * 2) : 0; b.hover = b.level === 3 && Math.floor(t) % 2 === 0; A.drawBuilding(x, b, t); }
+    x.restore(); requestAnimationFrame(step); }; step();
+}
+if (A.buildingPreviewURL) for (const t of ['cottage', 'tower', 'forge', 'garden', 'cattree']) for (const o of [0, 1, -1]) { const im = new Image(); im.src = A.buildingPreviewURL(t, D.BUILDINGS[t].maxLevel, o, 96); cell($('bprev'), im, t + ' ' + o); }
+if (A.heroPortraitURL) for (const h of D.HEROES) { const im = new Image(); im.src = A.heroPortraitURL(h.id, 128); const im2 = new Image(); im2.src = A.heroPortraitURL(h.id, 48); const d = cell($('por1'), im, h.name); d.insertBefore(im2, d.firstChild.nextSibling); }
+if (A.renderBackground) {
+  for (const m of D.MAPS) {
+    const blds = m.buildings.map(b => ({ x: b.x, y: b.y, radius: D.BUILDINGS[b.type].radius[(b.level || 1) - 1] }));
+    const t1 = performance.now();
+    const bg = A.renderBackground(m.theme, 12345, blds, 0.5);
+    const ms = (performance.now() - t1).toFixed(0);
+    const c = document.createElement('canvas'); c.width = 800; c.height = 450; const x = c.getContext('2d');
+    const full = m.buildings.map(b => ({ ...b, radius: D.BUILDINGS[b.type].radius[(b.level || 1) - 1], flags: 0 }));
+    const t0 = performance.now();
+    const step = () => { const t = (performance.now() - t0) / 1000; x.drawImage(bg, 0, 0); x.save(); x.scale(0.5, 0.5);
+      if (A.drawBuilding) for (const b of full) A.drawBuilding(x, b, t);
+      if (A.drawAmbient) A.drawAmbient(x, m.theme, t); x.restore(); requestAnimationFrame(step); }; step();
+    cell($('bg1'), c, m.theme + ' (' + ms + 'ms)');
+  }
+}
+</script>
+</body></html>

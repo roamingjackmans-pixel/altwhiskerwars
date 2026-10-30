@@ -1,0 +1,73 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Map Test</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { background:#2a2238; color:#eee; font:13px system-ui, sans-serif; margin:12px; }
+  h2 { margin:14px 0 4px; font-size:15px; color:#ffd36b; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(520px, 1fr)); gap:14px; }
+  .cell canvas { width:100%; border-radius:8px; display:block; background:#111; }
+  .cell.tall canvas { width:auto; height:640px; }
+  .bar { margin:6px 0 12px; } .bar label { margin-right:14px; }
+  #err { color:#ff8080; white-space:pre; }
+  .muted { color:#b8a9d6; }
+</style></head>
+<body>
+<div class="bar">
+  <label><input type="checkbox" id="routes"> show every road from P0's base</label>
+  <label><input type="checkbox" id="stand"> stood up (phone portrait, P0 at the bottom)</label>
+  <label>map <select id="only"><option value="">all</option></select></label>
+  <span class="muted">Every map's real background (terrain, trails, decorations) with its buildings.</span>
+</div>
+<div id="err"></div>
+<div class="grid" id="grid"></div>
+<script type="module">
+const err = document.getElementById('err');
+window.addEventListener('error', e => err.textContent += e.message + '\n');
+const A = await import('../js/art.js?v=' + Date.now()).catch(e => { err.textContent += e.stack; throw e; });
+const D = await import('../shared/data.js');
+const N = await import('../shared/nav.js');
+const { radiusOf } = await import('../shared/game.js');
+const maps = [...D.MAPS, D.randomMap(4242), D.randomMap(777)];
+const only = document.getElementById('only');
+for (const m of maps) only.insertAdjacentHTML('beforeend', `<option value="${m.id + m.name}">${m.name}</option>`);
+function draw() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  const stand = document.getElementById('stand').checked, showRoutes = document.getElementById('routes').checked;
+  for (const map of maps) {
+    if (only.value && only.value !== map.id + map.name) continue;
+    const W = D.WORLD_W, H = D.WORLD_H;
+    const fwd = stand ? (x, y) => ({ x: y, y: W - x }) : (x, y) => ({ x, y });
+    const VW = stand ? H : W, VH = stand ? W : H, s = stand ? 0.4 : 0.5;
+    const nav = N.getNav(map);
+    const bpos = map.buildings.map(b => ({ ...b, ...fwd(b.x, b.y) }));
+    const ids = map.buildings.map(b => b.id), seen = new Set(), trails = [];
+    for (const a of ids) for (const [b, d] of ids.filter(b => b !== a).map(b => [b, nav.len(a, b)]).sort((p, q) => p[1] - q[1]).slice(0, 2)) {
+      const k = Math.min(a, b) + ':' + Math.max(a, b);
+      if (!seen.has(k) && d <= 640) { seen.add(k); trails.push(nav.fullPath(a, b).map(p => fwd(p.x, p.y))); }
+    }
+    const t0 = performance.now();
+    const bg = A.renderBackground(map.theme, 1234, bpos.map(b => ({ x: b.x, y: b.y, radius: 44 })), s, VW, VH, { shapes: N.transformObstacles(map.obstacles || [], fwd), trails });
+    const ms = performance.now() - t0;
+    const c = document.createElement('canvas');
+    c.width = VW * s; c.height = VH * s;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(bg, 0, 0);
+    ctx.scale(s, s);
+    if (showRoutes) {
+      const p0 = map.buildings.find(b => b.owner === 0);
+      ctx.strokeStyle = 'rgba(40,120,255,0.8)'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+      for (const b of map.buildings) { if (b === p0) continue; const r = nav.fullPath(p0.id, b.id).map(p => fwd(p.x, p.y)); ctx.beginPath(); r.forEach((p, k) => k ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); }
+    }
+    for (const b of bpos.slice().sort((p, q) => p.y - q.y)) A.drawBuilding(ctx, { x: b.x, y: b.y, type: b.type, level: b.level, owner: b.owner, radius: radiusOf(b.type, b.level), flags: 0 }, 0);
+    const cell = document.createElement('div');
+    cell.className = 'cell' + (stand ? ' tall' : '');
+    cell.innerHTML = `<h2>${map.name} <span class="muted">${map.id} · ${map.theme} · ${map.buildings.length} buildings · ${(map.obstacles || []).length} terrain pieces · bg ${ms.toFixed(0)}ms</span></h2>`;
+    cell.appendChild(c);
+    grid.appendChild(cell);
+  }
+}
+for (const id of ['routes', 'stand', 'only']) document.getElementById(id).addEventListener('change', draw);
+draw();
+</script>
+</body></html>
