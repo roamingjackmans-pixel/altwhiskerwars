@@ -3,7 +3,7 @@
 import {
   WORLD_W, WORLD_H, TICK, BASE_SPEED, MAX_CATNIP, BASE_CATNIP_REGEN, START_CATNIP, TIME_LIMIT,
   OVERCAP_DECAY, SQUAD_CHUNK, PURR, purrLevel,
-  BTYPES, BUILDINGS, CONVERT_COST, HERO_BY_ID, HEROES, skillAt, SKILL_MAX, AI_LEVELS, TOWER_REGROW, STRAY_REGROW, strayRegrowRate, SCOUT, mulberry32,
+  BTYPES, BUILDINGS, CONVERT_COST, HERO_BY_ID, HEROES, skillAt, SKILL_MAX, AI_LEVELS, TOWER_REGROW, STRAY_REGROW, strayRegrowRate, mulberry32,
 } from './data.js';
 import { getNav } from './nav.js';
 
@@ -167,12 +167,11 @@ export class Game {
     }
     return best;
   }
-  /** can player i see the cats inside building b? (their own, strays, Owl Scout, Spy Eye, Food Poisoning) */
+  /** can player i see the cats inside building b? (their own, strays, Spy Eye, Food Poisoning) */
   canSee(i, b) {
     if (b.owner === i || b.owner < 0) return true;
     const p = this.players[i];
     if (!p) return true;
-    if (p.scoutUntil > this.time) return true;
     return this.revealed(i, b);
   }
   revealed(i, b) {
@@ -210,7 +209,6 @@ export class Game {
       case 'up': return this.cmdUpgrade(i, c);
       case 'conv': return this.cmdConvert(i, c);
       case 'spell': return this.cmdSpell(i, c);
-      case 'scout': return this.cmdScout(i);
       case 'emote':
         if (this.time - p.lastEmote < 1.2) return;
         p.lastEmote = this.time;
@@ -324,21 +322,6 @@ export class Game {
     b.fx.popup = 0;
     this.emit({ k: 'conv', o: i, b: b.id, to: c.to });
   }
-
-  /** Owl Scout: see every enemy building's cats for a few seconds. */
-  cmdScout(i) {
-    const p = this.players[i];
-    if (!p || !p.alive) return;
-    if (p.silenced > this.time) return this.err(i, 'Hush! No skills right now');
-    if (p.scoutCd > 0) return this.err(i, 'The owl is resting');
-    if (p.catnip < SCOUT.cost) return this.err(i, `Owl Scout needs ${SCOUT.cost} catnip`);
-    p.catnip -= SCOUT.cost;
-    p.scoutUntil = this.time + SCOUT.dur;
-    p.scoutCd = SCOUT.cd;
-    p.stats.spells++;
-    this.emit({ k: 'scout', o: i });
-  }
-  scouting(i) { const p = this.players[i]; return !!p && p.scoutUntil > this.time; }
 
   // ---------- skills ----------
   cmdSpell(i, c) {
@@ -820,7 +803,6 @@ export class Game {
       p.catnip = Math.min(MAX_CATNIP, p.catnip + this.catnipRegen(p.idx) * dt);
       for (let k = 0; k < p.cds.length; k++) if (p.cds[k] > 0) p.cds[k] = Math.max(0, p.cds[k] - dt);
       if (p.gcd > 0) p.gcd = Math.max(0, p.gcd - dt);
-      if (p.scoutCd > 0) p.scoutCd = Math.max(0, p.scoutCd - dt);
       // sitting still drains Purr Power, and the higher it is the sooner and faster it goes
       const lv = this.stars(p.idx);
       if (p.purr > 0 && t - p.lastAction > PURR.idleAfter[lv]) this.addPurr(p.idx, -PURR.idleDrain[lv] * dt);
@@ -1058,14 +1040,13 @@ export class Game {
 
 /**
  * What one seat may see of a snapshot: the cats inside other players' buildings and their army totals are hidden
- * (-1) unless that seat's Owl Scout is out (or a Spy Eye / Food Poisoning shows that one building). Strays stay
+ * (-1) unless a Spy Eye or Food Poisoning of theirs shows that building. Strays stay
  * visible. seat < 0 (a spectator) sees everything.
  */
 export function maskSnap(snap, seat) {
   if (seat == null || seat < 0) return snap;
   const me = snap.p[seat];
   const out = { ...snap, rv: undefined };
-  if (me && (me[5] & PF.scouting)) return out;
   const seen = new Set((snap.rv && snap.rv[seat]) || []);
   out.b = snap.b.map(a => (a[1] >= 0 && a[1] !== seat && !seen.has(a[0]) ? [a[0], a[1], a[2], a[3], -1, ...a.slice(5)] : a));
   out.p = snap.p.map((a, k) => (k === seat ? a : [...a.slice(0, 7), -1, ...a.slice(8)]));

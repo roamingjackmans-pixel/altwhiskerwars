@@ -1,7 +1,7 @@
 {
-  "name": "whisker-wars",
-  "version": "1.3.0",
-  "description": "Whisker Wars - real-time cat strategy PvP for the browser",
+  "name": "alt-whisker-wars",
+  "version": "1.0.0",
+  "description": "Alt Whisker Wars - Whisker Wars with hidden armies, levelled hero skills and Purr Power morale",
   "type": "module",
   "main": "server/index.js",
   "scripts": {

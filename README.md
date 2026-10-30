@@ -1,9 +1,51 @@
-# 🐱 Whisker Wars
+# 🐱 Alt Whisker Wars
 
-Real-time cat-kingdom strategy for the browser. Drag to send your army of adorable cats, capture cottages,
-cast silly spells and battle your friends online with a 5-number room code.
+A variant of [Whisker Wars](https://github.com/roamingjackmans-pixel/whiskerwars): the same maps, buildings and
+cat-sending battles, with four big changes:
 
-**Play:** https://josephjackman.com/whiskerwars/
+1. **Hidden armies.** Nobody can see how many cats are inside a rival's buildings, the computer included (they show
+   **?**). Only two heroes have a skill that looks inside: Agent Velvet's **Spy Eye** (every building in an area) and
+   Chef Grimsby's **Food Poisoning** (the poisoned building). Everyone else estimates from what they saw.
+2. **New heroes with levelled skills.** 12 heroes, each with exactly 4 skills and no passive. A skill's slot sets its
+   catnip cost (20 / 40 / 60 / 80) and cooldown; every skill has 5 levels bought with 🐟 fish (300 / 750 / 1,500 /
+   3,000) that shorten the cooldown and strengthen the effect.
+3. **Purr Power is army morale and it matters a lot.** 0-5 stars from purr points (500 / 1,000 / 2,000 / 4,000 /
+   8,000). Each star: **+25% defense, +5% attack, +10% speed** for every cat you own. Earned by captures (rival
+   buildings most), upgrades and knocking out attackers (+10 each); lost by losing buildings, losing cats while
+   attacking (−10 each) and sitting still (the drain starts sooner and runs faster at high stars).
+   Cats lost attacking refill catnip, up to 5× more when your purr is low, so the side that's behind gets more skills.
+4. **Scarce catnip.** Everyone starts with 0 catnip and it refills 30% slower than in Whisker Wars (0.805/s). Catnip
+   Gardens keep their original catnip-per-second, so each garden is worth much more.
+
+Plus an **interactive tutorial**: a real battle with a coach card that walks you through sending cats, attacking,
+upgrading, switching buildings (towers up front, forges and gardens at the back), hidden armies, hero skills and
+how Purr Power is earned and lost. +600 🐟 the first time you finish it.
+
+**Play:** https://josephjackman.com/altwhiskerwars/
+
+Saves, room codes, friend codes and the update check are all separate from Whisker Wars, so both games can live on the
+same site without touching each other.
+
+## Heroes
+
+| Clan | Hero | Skills (slot 1-4) |
+| --- | --- | --- |
+| 👑 Royal Court | Sir Pounce (free) | Stone Paws (building defense ×1.25-1.35), Zoom Boots (everyone walking in an area runs faster), Lucky Star (+1 purr star, purr can't drop), Sneak Attack (30-45 cats hit every enemy building at once) |
+| | Corporal Kibble (free) | Pop-up Tower, Boom Hairballs (tower shots explode), Tight Formation (next squad packed and faster), Catnip Bomb (75-95% of a garrison + nearby squads) |
+| | Baron Bristle | Shackles (building can't send), Even Purr (everyone's purr becomes the average), Battle Fury (area attack/speed boost), Ring of Fire (area knockout, up to 100-1000 cats) |
+| 🔧 Tech Whiskers | Captain Zap | Beam Me Up (teleport 50-75% between your buildings), Cloak (invisible squads), U-Turn Field, Drop Pods (75-100 cats arrive over a few seconds) |
+| | 👁 Agent Velvet | Spy Eye (see counts in an area, slows their kittens), Fog Cloud, Hypnotize (70-80% of a garrison walks to you), Zap Fence |
+| | Professor Paradox | Mind Reader (see where enemy squads are heading), Rewind (squads jump back in time), Shortcut (next squad tunnels there in 3.5s), Chain Reaction |
+| 🌙 Moon Mystics | Princess Paprika | Kitten Boom, Hush (nobody can use skills), Paper Walls (building loses its defense briefly), Sweet Talk (30-40 enemy cats switch sides) |
+| | Snowpaw | Deep Freeze (building), Flying Kittens (next squad flies over terrain), Ring of Frost (everyone in an area frozen), Tornado |
+| | Miss Mischief | Zoomies Vortex, Purr Freeze (everyone's purr locked), Chicken Out (enemy squads lose their bonuses), Cat Magnet |
+| 🗑️ Alley Cats | Lord Graveclaw | Crumble (building drops a level), Second Life (revive cats lost in the last 5s), Go Home (area: everyone turns back), Panic (garrison flees) |
+| | 👁 Chef Grimsby | Soul Snatcher (tower range up, kills join it), Untouchable, Slow-Mo Ring, Food Poisoning (garrison sickens, spreads, count revealed) |
+| | Hexley | Defectors (enemy kittens walk to you), Bounce Shield, Swap! (trade an enemy building for one of yours), Echo Hex (damage copied to nearby buildings) |
+
+All the numbers live in `public/shared/data.js` (`HEROES`, `SLOTS`, `PURR`); the skills themselves are in
+`applySpell` in `public/shared/game.js`. The computer uses every skill (`public/shared/ai.js`) and guesses hidden
+counts the same way a player has to.
 
 ## Play locally
 
@@ -22,11 +64,11 @@ Open http://localhost:8080. To test online play by yourself, open a second brows
 | Online, 2-4 players | 5-number room codes + invite links (`?room=CODE`), lobby for 2, 3 or 4 players with hero/map/time pick (only maps for that many players), ready check, emotes, rematch, ping display, 20-second reconnect if someone's connection drops (with 3-4 players, someone who doesn't come back is knocked out and the battle carries on) |
 | Friends | Every player has an 8-number friend code. Add friends by code, or with one tap on the player you just battled in the lobby. Friends with the game open show as online. The lobby lists them at the top (with people you played recently): tap **Invite** and they get a popup that drops them straight into your room |
 | Fun modifiers | Zoomies (fast cats), Catnip Frenzy, Kitten Boom, Big Start — toggle in the lobby or practice setup |
-| 12 heroes | 4 clans, each hero has a passive + 3 spells (36 spells), unlocked with fish coins earned by playing |
+| 12 heroes | 4 clans, each hero has 4 skills (48 skills), each skill levels 1-5 with fish; heroes unlocked with fish coins earned by playing |
 | 5 building types | Kitten Cottage (5 levels), Scratch Tower, Yarn Forge, Catnip Garden, Grand Cat Tree. Upgrade or convert any time |
 | Maps | 35 maps. 2 players: 6 open fields and 13 with terrain (ponds, rivers, islands joined by bridges, hedges, walls, snow ridges, dirt mounds) that make cats walk the long way round. 3 players: 3 compact maps that repeat three ways around the middle, and 5 that fill the whole field without being symmetric (each seat has a different spot, kept fair by equal road lengths and tuned strays). 4 players: 8 maps mirrored into every corner. Open and terrain maps for each player count. Random maps (2 players) get lumps and ponds too. Each player's view is turned so their own base is at the bottom / left |
-| Core mechanics | Drag-to-send (the arrow shows the road your cats will take), swipe across buildings for multi-send, 25/50/75/100% send, field battles between squads, towers, Purr Power stars (momentum), catnip spell energy. A building taken from the other player drops one upgrade level. Nobody can see how many cats are inside another player's buildings (they show **?**, strays stay visible; the AI only guesses too): every hero has the 🦉 Owl Scout (15 catnip, hotkey 4) to see them for 10 s. Unowned towers shoot at everyone's cats until someone takes them. Unowned buildings grow back to their starting cats a few seconds after a failed attack (bigger ones faster: a full refill takes about 24 s); your own towers grow back lost cats at the kitten rate; towers, forges and gardens never shrink on their own |
-| Solo | 12-level campaign with 3-star ratings, practice against 1-3 computer cats at 4 difficulties, live AI battle on the menu background |
+| Core mechanics | Drag-to-send (the arrow shows the road your cats will take), swipe across buildings for multi-send, 25/50/75/100% send, field battles between squads, towers, Purr Power stars (army morale: +25% defense, +5% attack, +10% speed per star), catnip skill energy (starts at 0). A building taken from the other player drops one upgrade level. Nobody can see how many cats are inside another player's buildings (they show **?**, strays stay visible; the AI only guesses too): only Agent Velvet (Spy Eye) and Chef Grimsby (Food Poisoning) can look inside. Unowned towers shoot at everyone's cats until someone takes them. Unowned buildings grow back to their starting cats a few seconds after a failed attack (bigger ones faster: a full refill takes about 24 s); your own towers grow back lost cats at the kitten rate; towers, forges and gardens never shrink on their own |
+| Solo | Interactive tutorial, 12-level campaign with 3-star ratings, practice against 1-3 computer cats at 4 difficulties, live AI battle on the menu background |
 | Progression | Coins, XP & levels, daily gift, first-win bonus, 13 achievements, 15 furs + 12 hats (your whole army wears them), match history |
 | Polish | Procedural art, synthesized music & SFX, spell VFX, screen shake, keyboard shortcuts |
 | Phones | Own layout, on by default on phones: the field stands up in portrait (your base at the bottom), zooms onto the buildings, big tap zones, thumb dock (send %, 🐾 ALL, spells), compact upgrade bar, hold-to-read spells, vibration, full screen on Android, screen stays awake, back button opens the battle menu. Settings → Battle layout overrides it. Settings → 📲 Download app installs it on the home screen or desktop (the browser's install prompt in Chrome, Edge and Android; step-by-step help on iPhone, iPad, Safari and Firefox) |
@@ -55,8 +97,8 @@ Upload the contents of `public/` to any web host (GitHub Pages, Netlify, Cloudfl
 or a sub-folder of one). It runs in peer-to-peer mode. Done.
 
 This repo already does this: `.github/workflows/pages.yml` publishes `public/` to GitHub Pages on every
-push to `main`. The site appears under the account's custom domain at `/whiskerwars/` because the repo
-is named `whiskerwars`.
+push to `main`. The site appears under the account's custom domain at `/altwhiskerwars/` because the repo
+is named `altwhiskerwars`.
 Each deploy stamps the version shown on the home screen, e.g. `v1.3.42 · 1a2b3c4`: major.minor come from
 `package.json`, the last number counts commits, and the 7 characters are the commit.
 
@@ -73,7 +115,7 @@ A `render.yaml` is included for one-click Render deploys.
 Put `public/` on your website and run the server on a Node host, then edit `public/config.js`:
 
 ```js
-window.WW_CONFIG = { server: 'wss://your-server.onrender.com/ws', peerPrefix: 'whiskerwars-v1-' };
+window.WW_CONFIG = { server: 'wss://your-server.onrender.com/ws', peerPrefix: 'altwhiskerwars-v1-' };
 ```
 
 ## Tools
@@ -83,7 +125,7 @@ node tools/simtest.mjs 40     # AI-vs-AI crash test on all maps
 node tools/maptest.mjs        # every map: clear ground under buildings, every road walkable, fair to both sides
 node tools/maptest.mjs ridge  # ...and draws the named map(s) as text
 node tools/balance.mjs        # round-robin hero win rates (both sides Hard AI)
-node tools/probe.mjs duchess  # one hero vs everyone (add a spell id or "passive" to disable it)
+node tools/probe.mjs velvet   # one hero vs everyone (add a spell id to disable it)
 node tools/relaytest.mjs      # tests the WebSocket relay with a host and 3 guests (server must be running)
 node tools/rejointest.mjs     # tests reconnecting into a room (server must be running)
 node tools/lobbytest.mjs      # tests the 2-4 player lobby/match message protocol in memory
@@ -100,11 +142,11 @@ and `public/dev/maps.html` shows every map's real background (also stood up the 
 ```
 public/            the game (deploy this folder for static hosting)
   index.html, config.js, css/style.css
-  shared/          data.js (heroes, spells, buildings, maps), game.js (simulation), ai.js, nav.js (terrain + roads)
-  js/              main, ui (menus), match (game loop/input), render, hud, art, audio, net, online, profile
+  shared/          data.js (heroes, skills, Purr Power, buildings, maps), game.js (simulation), ai.js, nav.js (terrain + roads)
+  js/              main, ui (menus), match (game loop/input), tutorial, render, hud, art, audio, net, online, profile
   vendor/          peerjs.min.js
 server/index.js    static file server + WebSocket room relay
 tools/             headless tests
 ```
 
-Progress (coins, unlocks, stats) is saved in each player's browser (localStorage).
+Progress (coins, unlocks, skill levels, stats) is saved in each player's browser (localStorage, key `altwhiskerwars.profile.v1`).

@@ -91,10 +91,8 @@ export const TOWER_REGROW = { rate: BUILDINGS.cottage.prod[0], delay: 4 };
 // (an 8-cat cottage gets back ~0.33 cats/s, a 20-cat one ~0.83, a 45-cat Cat Tree ~1.9).
 export const STRAY_REGROW = { refill: 24, min: 0.3, delay: 4 };
 export const strayRegrowRate = full => Math.max(STRAY_REGROW.min, full / STRAY_REGROW.refill);
-// Nobody can see how many cats are inside another player's buildings (strays stay visible). Every hero can send the
-// Owl Scout: for a few seconds you see every enemy building's count (and their army totals).
-export const SCOUT = { id: 'scout', name: 'Owl Scout', icon: '🦉', cost: 15, cd: 30, dur: 10, target: 'global',
-  desc: 'An owl flies over the battlefield: for 10s you can see how many cats are inside every enemy building.' };
+// Nobody can see how many cats are inside another player's buildings (strays stay visible), not even the computer.
+// Only two heroes have a skill that shows them: Agent Velvet (Spy Eye) and Chef Grimsby (Food Poisoning).
 // Prof. Purrcival's Auto-Turret spell bolts on a fixed-size hairball turret
 export const TURRET = { range: 195, fireEvery: 0.95 };
 // cost (in cats) to convert a building into another type (resets to level 1)
@@ -189,7 +187,7 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'velvet', name: 'Agent Velvet', title: 'Spy of the Night Roofs', clan: 'tech', cost: 13500, fur: 'black', art: 'shadow', role: 'All-round · Hard',
+    id: 'velvet', name: 'Agent Velvet', title: 'Spy of the Night Roofs', clan: 'tech', cost: 13500, fur: 'black', art: 'shadow', role: 'All-round · Hard', sees: true,
     blurb: 'Knows exactly how many cats you have. Soon, so will you.',
     spells: [
       { id: 'spyeye', name: 'Spy Eye', icon: '🔭', target: 'area', fx: 'spy', lv: { dur: [5, 5.5, 6, 6.5, 7], prod: [0.95, 0.9, 0.85, 0.8, 0.75], r: [200, 212, 225, 237, 250] },
@@ -275,7 +273,7 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'grimsby', name: 'Chef Grimsby', title: 'The Spooky Cook', clan: 'alley', cost: 1500, fur: 'cream', art: 'chef', role: 'Defense · Easy',
+    id: 'grimsby', name: 'Chef Grimsby', title: 'The Spooky Cook', clan: 'alley', cost: 1500, fur: 'cream', art: 'chef', role: 'Defense · Easy', sees: true,
     blurb: 'His towers never go hungry and his soup is... an acquired taste.',
     spells: [
       { id: 'soulsnatch', name: 'Soul Snatcher', icon: '🥄', target: 'own', fx: 'soul', lv: { range: [1.2, 1.25, 1.3, 1.4, 1.5], dur: [10, 11, 12, 13.5, 15] },

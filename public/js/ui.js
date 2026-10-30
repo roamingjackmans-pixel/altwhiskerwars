@@ -1,7 +1,7 @@
 // Whisker Wars menus & screens.
 import {
   HEROES, HERO_BY_ID, CLANS, FURS, HATS, MAPS, MAP_BY_ID, THEMES, AI_LEVELS, CAMPAIGN, ACHIEVEMENTS, BUILDINGS, EMOTES,
-  randomMap, teamColor, RULES, COINS, SCOUT, SKILL_MAX, skillAt, skillGain, skillUpgradeCost,
+  randomMap, teamColor, RULES, COINS, PURR, SKILL_MAX, skillAt, skillGain, skillUpgradeCost,
 } from '../shared/data.js';
 import * as P from './profile.js';
 import { audio } from './audio.js';
@@ -230,7 +230,7 @@ function heroCard(h, { selected, locked, small } = {}) {
   return `<div class="hero-card card clickable ${selected ? 'sel' : ''} ${locked ? 'locked' : ''} ${small ? 'small' : ''}" data-hero="${h.id}" style="--clan:${c.color}">
     <img src="${portrait(h.id, small ? 96 : 140)}" alt="">
     <div class="hc-name">${h.name}</div>
-    ${small ? '' : `<div class="hc-title">${h.title}</div>`}
+    ${small ? '' : `<div class="hc-title">${h.title}</div><div class="hc-role">${h.role || ''}${h.sees ? ' · 👁' : ''}</div>`}
     ${locked ? `<div class="hc-lock">🔒 <span class="fish">🐟</span>${h.cost}</div>` : ''}
   </div>`;
 }
@@ -262,8 +262,7 @@ function heroDetail(h, { upgrades = false } = {}) {
       return `<div class="ability"><div class="ab-icon">${s.icon}</div><div class="ab-body"><div class="ab-head"><b>${s.name}</b> <span class="ab-tag">${k + 1}</span>${pips(lv)}</div>
         <div>${s.text}</div><div class="ab-meta">🌿 ${s.cost} catnip · ⏱ ${s.cd}s · 🎯 ${tl[s.target]}</div>${up}</div></div>`;
     }).join('')}
-    <div class="ability scout"><div class="ab-icon">${SCOUT.icon}</div><div class="ab-body"><div class="ab-head"><b>${SCOUT.name}</b> <span class="ab-tag">every hero</span></div>
-      <div>${SCOUT.desc}</div><div class="ab-meta">🌿 ${SCOUT.cost} catnip · ⏱ ${SCOUT.cd}s</div></div></div>
+    ${h.sees ? '<div class="ability scout"><div class="ab-icon">👁</div><div class="ab-body"><b>Sees hidden armies</b><div>Rival cat counts are hidden from everyone. This hero has a skill that shows them.</div></div></div>' : ''}
   </div>`;
 }
 /** Inline hero picker (unlocked heroes selectable; locked shown). */
@@ -596,7 +595,7 @@ SCREENS.lobby = () => {
   if (!session) return go('friend');
   const S = session;
   const p = P.profile();
-  if (!P.heroUnlocked(p.equip.hero)) P.equip('hero', 'whiskers');
+  if (!P.heroUnlocked(p.equip.hero)) P.equip('hero', 'pounce');
   S.setPick({ hero: p.equip.hero, fur: p.equip.fur, hat: p.equip.hat, name: p.name, level: p.level, skills: P.skillLevels(p.equip.hero) });
   const link = `${location.origin}${location.pathname}?room=${S.code}`;
   screens.innerHTML = `${topbar(false, 'Battle Lobby')}
@@ -1033,7 +1032,7 @@ SCREENS.practice = () => {
       </div>
     </div>`;
   wireGo();
-  let hero = P.heroUnlocked(p.equip.hero) ? p.equip.hero : 'whiskers';
+  let hero = P.heroUnlocked(p.equip.hero) ? p.equip.hero : 'pounce';
   const det = () => $('.pr-detail').innerHTML = heroDetail(HERO_BY_ID[hero]);
   heroPicker($('.pr-heroes'), hero, id => { hero = id; P.equip('hero', id); det(); });
   det();
@@ -1105,7 +1104,7 @@ SCREENS.campaign = () => {
   $$('.camp-node.clickable').forEach(n => n.onclick = () => {
     const l = CAMPAIGN.find(x => x.id === +n.dataset.lv);
     const e = HERO_BY_ID[l.enemy];
-    let hero = P.heroUnlocked(p.equip.hero) ? p.equip.hero : 'whiskers';
+    let hero = P.heroUnlocked(p.equip.hero) ? p.equip.hero : 'pounce';
     const m = modal(`<div class="level-card">
       <div class="lc-top"><img src="${portrait(e.id, 140)}"><div><div class="muted">Level ${l.id}</div><h2>${l.name}</h2>
         <div>Enemy: <b>${e.name}</b> (${AI_LEVELS[l.ai].name} AI)</div><div>Map: <b>${MAP_BY_ID[l.map].name}</b></div>
@@ -1139,7 +1138,7 @@ SCREENS.heroes = () => {
   const byClan = Object.keys(CLANS).map(c => ({ c, list: HEROES.filter(h => h.clan === c) }));
   screens.innerHTML = `${topbar(true, 'Heroes')}
     <div class="heroes">
-      <p class="center muted">Unlock new heroes with fish coins 🐟 earned from every battle. Each hero has a passive power and 3 unique spells.</p>
+      <p class="center muted">Every hero has <b>4 skills</b> paid for with 🌿 catnip. Tap a hero to read them, then spend 🐟 fish to <b>level each skill up to ${SKILL_MAX}</b>: shorter cooldowns and bigger effects. Rival cat counts are hidden: only heroes marked 👁 have a skill that shows them.</p>
       ${byClan.map(({ c, list }) => `<div class="clan-row"><h3 style="color:${CLANS[c].color}">${CLANS[c].icon} ${CLANS[c].name} <span class="muted small">${CLANS[c].desc}</span></h3>
         <div class="hero-grid">${list.map(h => heroCard(h, { selected: p.equip.hero === h.id, locked: !P.heroUnlocked(h.id) })).join('')}</div></div>`).join('')}
     </div>`;
@@ -1229,17 +1228,25 @@ SCREENS.howto = () => {
         <p><b>Tap</b> your building to <b>upgrade</b> it (costs cats) or <b>convert</b> it to another type. Double-tap to upgrade quickly.</p></div>
       </div>
       <div class="card panel how">
-        <div class="how-i">🌿</div><div><h3>4. Cast spells</h3><p>Your hero has 3 spells powered by <b>catnip</b>, which refills over time (faster with Catnip Gardens). Tap a spell (or press 1/2/3), then tap the map or a glowing building. Every hero also has a passive power.</p></div>
+        <div class="how-i">🔄</div><div><h3>4. Switch buildings</h3><p>Any building can change its job (it costs cats and goes back to level 1). <b>Towers</b> belong on the front line: they shoot cats walking past and are tough to take. <b>Forges</b> make every one of your cats hit harder and <b>Gardens</b> refill catnip much faster, so keep those safe at the back.</p></div>
       </div>
       <div class="card panel how">
-        <div class="how-i">⭐</div><div><h3>5. Purr Power</h3><p>Capturing, upgrading and defending fill your Purr Power stars. Each star makes all your cats a bit stronger and faster. Losing buildings, losing cats or sitting idle drains it.</p></div>
+        <div class="how-i">❓</div><div><h3>5. Hidden armies</h3><p>Nobody can see how many cats are inside a rival's buildings (they show <b>?</b>), not even the computer. Only two heroes can look inside: <b>Agent Velvet</b>'s Spy Eye and <b>Chef Grimsby</b>'s Food Poisoning (marked 👁). Everyone else has to guess, so watch which squads leave and arrive. Cats walking on the road always show their numbers.</p></div>
       </div>
       <div class="card panel how">
-        <div class="how-i">🏆</div><div><h3>6. Win!</h3><p>Take every enemy building and squad to win. If the timer runs out, the biggest army wins. Every battle earns fish coins 🐟 to unlock heroes, furs and hats.</p></div>
+        <div class="how-i">🌿</div><div><h3>6. Hero skills</h3><p>Your hero has <b>4 skills</b> that cost catnip: 20, 40, 60 and 80. Catnip starts at <b>zero</b> and refills slowly, faster with <b>Catnip Gardens</b>. Losing cats in an attack also gives some back, a lot more when your Purr Power is low. Tap a skill (or press 1-4), then tap the map or a glowing building. Level skills up with 🐟 fish on the Heroes screen.</p></div>
       </div>
-      <div class="center"><button class="btn primary big" data-go="practice">Try it vs the computer →</button></div>
+      <div class="card panel how">
+        <div class="how-i">⭐</div><div><h3>7. Purr Power</h3><p>Your army's morale, shown as up to 5 stars. Each star gives <b>all</b> your cats <b>+${Math.round(PURR.def * 100)}% defense, +${Math.round(PURR.atk * 100)}% attack and +${Math.round(PURR.spd * 100)}% speed</b>, so at 4 stars one of your defenders is worth two attackers from a 0-star army.</p>
+        <p>📈 <b>Earn it</b> by capturing buildings (rivals' are worth the most), upgrading, and knocking out cats that attack you. 📉 <b>Lose it</b> by losing buildings, losing cats in attacks, and sitting still: the higher it is, the faster it drains when you stop. <b>Don't attack into a rival with more stars</b>: defend, upgrade and wait for theirs to cool off.</p></div>
+      </div>
+      <div class="card panel how">
+        <div class="how-i">🏆</div><div><h3>8. Win!</h3><p>Take every enemy building and squad to win. If the timer runs out, the biggest army wins. Every battle earns fish coins 🐟 to unlock heroes, furs and hats.</p></div>
+      </div>
+      <div class="center row"><button class="btn gold big how-tut">🎓 Play the interactive tutorial</button><button class="btn primary big" data-go="practice">Try it vs the computer →</button></div>
     </div>`;
   wireGo();
+  $('.how-tut').onclick = () => playTutorial();
 };
 
 // ---------- Settings

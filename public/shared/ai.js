@@ -1,5 +1,5 @@
 // Alt Whisker Wars - computer opponent. Runs on the authority, issues normal commands.
-import { BUILDINGS, AI_LEVELS, BASE_SPEED, STRAY_REGROW, strayRegrowRate, SCOUT } from './data.js';
+import { BUILDINGS, AI_LEVELS, BASE_SPEED, STRAY_REGROW, strayRegrowRate } from './data.js';
 
 // buildings are compared by how far a cat has to WALK (around ponds, walls and mounds), not as the crow flies
 
@@ -21,9 +21,8 @@ export class AI {
   }
 
   // ---------- what it knows about rival buildings ----------
-  // Nobody can see how many cats are inside another player's buildings, the computer included (see SCOUT in
-  // data.js). It remembers the last count it saw, adds the kittens a building could have made since, takes away
-  // the squads it watches leave and adds the ones it watches arrive. Its Owl Scout (and spy skills) show the truth.
+  // Nobody can see how many cats are inside another player's buildings, the computer included. It remembers the last count it saw, adds the kittens a building could have made since, takes away
+  // the squads it watches leave and adds the ones it watches arrive. Spy Eye and Food Poisoning (if its hero has them) show the truth.
   initIntel() {
     this.seen = new Map();     // building id -> { c: cats, t: when, o: owner then }
     for (const b of this.g.buildings) this.seen.set(b.id, { c: b.count, t: this.g.time, o: b.owner });
@@ -104,11 +103,6 @@ export class AI {
     }
     this.threatened = threatened;
 
-    // now and then send the Owl Scout to see what the rivals really have
-    const P = g.players[me];
-    if (P.scoutCd <= 0 && P.silenced <= g.time && P.catnip >= SCOUT.cost + 20 && g.time - (this.lastScout ?? -99) > 45 && Math.random() < 0.25 + this.L.spellUse * 0.4) {
-      this.cmd({ k: 'scout' }); this.lastScout = g.time;
-    }
     if (Math.random() < this.L.spellUse) this.trySpells(mine);
     this.defend(mine);
     if (Math.random() < this.L.upgrade) this.tryUpgrade(mine);
@@ -398,7 +392,7 @@ export class AI {
       case 'hush': return g.players.some(q => q.alive && q.idx !== me && q.catnip >= 55) && P.cds.some(c => c > 5) ? {} : null;
       case 'spyeye': {
         const b = maxBy(enemyB, x => enemyB.filter(o => Math.hypot(o.x - x.x, o.y - x.y) < sp.r).length);
-        return b && !g.scouting(me) ? { x: b.x, y: b.y } : null;
+        return b ? { x: b.x, y: b.y } : null;
       }
       case 'mindread': { const c = this.bestCluster(isEnemy, sp.r); return c && c.n >= 15 ? { x: c.x, y: c.y } : null; }
       case 'chain': {

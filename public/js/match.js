@@ -1,7 +1,7 @@
 // Whisker Wars match controller: runs/receives the simulation, handles input, feeds renderer + HUD.
-import { Game, radiusOf, BFX, SFX, maskSnap } from '../shared/game.js';
+import { Game, radiusOf, BFX, SFX, ZONES, PF, maskSnap } from '../shared/game.js';
 import { AI } from '../shared/ai.js';
-import { TICK, SNAP_EVERY, BTYPES, BUILDINGS, HERO_BY_ID, HEROES, skillAt, PURR, BASE_SPEED, WORLD_W, WORLD_H, strayRegrowRate, SCOUT } from '../shared/data.js';
+import { TICK, SNAP_EVERY, BTYPES, BUILDINGS, HERO_BY_ID, HEROES, skillAt, PURR, BASE_SPEED, WORLD_W, WORLD_H, strayRegrowRate } from '../shared/data.js';
 import { Renderer, spellTargetOk } from './render.js';
 import { Hud } from './hud.js';
 import { audio } from './audio.js';
@@ -158,7 +158,10 @@ export class Match {
       return;
     }
     // desktop: the field may slide under the HUD bars wherever that hides no building
-    this.renderer.avoid = this.hud ? this.hud.desktopPanels() : null;
+    const panels = this.hud ? this.hud.desktopPanels() : [];
+    const card = this.tutorial && this.tutorial.rect();
+    if (card) panels.push(card);
+    this.renderer.avoid = panels.length ? panels : null;
     const pad = this.hud ? this.hud.desktopPadding() : { top: 52, bottom: 76, left: 6, right: 6 };
     if (this.tutorial) pad.top += this.tutorial.space();
     this.renderer.setPadding(pad);
@@ -215,7 +218,7 @@ export class Match {
       if (this.metro) { this.metro.stop(); this.metro = null; }
     }
   }
-  /** What this player may see: other players' building counts are hidden unless their Owl Scout is out. */
+  /** What this player may see: other players' building counts are hidden (unless a Spy Eye / Food Poisoning of theirs shows them). */
   viewOf(snap) { return this.role !== 'guest' && this.me >= 0 ? maskSnap(snap, this.me) : snap; }
   publish(snap, force) {
     this.full = snap;
@@ -290,12 +293,12 @@ export class Match {
     const art = this.renderer.artScale || 1;
     const buildings = [], byId = new Map();
     for (const arr of b.b) {
-      const [id, owner, ti, level, count, fx, cap, hackBy, full] = arr;
+      const [id, owner, ti, level, count, fx, cap, tlv, full] = arr;
       const p = pos.get(id);
       const prev = a._b.get(id);
       const c = prev && prev[1] === owner && count >= 0 && prev[4] >= 0 ? prev[4] + (count - prev[4]) * u : count;
       const type = BTYPES[ti];
-      const o = { id, x: p.x, y: p.y, owner, type, level, count: c, fx, cap, hackBy, full: full || 0, radius: radiusOf(type, level) * art };
+      const o = { id, x: p.x, y: p.y, owner, type, level, count: c, fx, cap, tlv: tlv || 0, full: full || 0, radius: radiusOf(type, level) * art };
       buildings.push(o); byId.set(id, o);
     }
     const squads = [], squadById = new Map();
@@ -314,8 +317,10 @@ export class Match {
       const o = { id, owner, count, x: sx, y: sy, fx, to };
       squads.push(o); squadById.set(id, o);
     }
-    const players = b.p.map(arr => ({ catnip: arr[0], purr: arr[1], cds: [arr[2], arr[3], arr[4], arr[11] || 0], buffs: arr[5], alive: arr[6], army: arr[7], stars: arr[8], gcd: arr[9], scoutCd: arr[10] || 0, scouting: !!(arr[5] & 8) }));
-    return { t: a.t + (b.t - a.t) * u, buildings, byId, squads, squadById, players, timeLimit: this.info.timeLimit };
+    const players = b.p.map(arr => ({ catnip: arr[0], purr: arr[1], cds: [arr[2], arr[3], arr[4], arr[11] || 0], buffs: arr[5], alive: arr[6], army: arr[7], stars: arr[8], gcd: arr[9], scoutCd: arr[10] || 0, scouting: !!(arr[5] & PF.scouting), silenced: !!(arr[5] & PF.silenced), purrLock: !!(arr[5] & PF.purrLock) }));
+    // lasting skill areas, turned like everything else
+    const zones = (b.z || []).map(([k, x, y, r, o, left]) => { const v = this.fwd(x, y); return { k: ZONES[k], x: v.x, y: v.y, r, o, left }; });
+    return { t: a.t + (b.t - a.t) * u, buildings, byId, squads, squadById, players, zones, timeLimit: this.info.timeLimit };
   }
 
   handleEvent(e, V) {
@@ -335,12 +340,11 @@ export class Match {
         break;
       case 'fight': audio.play('fight', { vol: 0.55 }); break;
       case 'shot': audio.play('shot', { vol: 0.28 }); break;
-      case 'scout': if (e.o === me) { audio.play('star'); this.hud && this.hud.toast(`🦉 Owl Scout: enemy cats are visible for ${SCOUT.dur}s`); } break;
       case 'up': audio.play('upgrade', { vol: e.o === me ? 0.8 : 0.4 }); break;
       case 'conv': audio.play('convert', { vol: e.o === me ? 0.8 : 0.4 }); break;
       case 'star': if (e.o === me) audio.play('star'); break;
       case 'emote': audio.play(e.id === 'hiss' ? 'hiss' : e.id === 'love' ? 'purr' : e.id === 'nap' ? 'snore' : 'meow', { vol: 0.7, pitch: e.o === me ? 1.1 : 0.95 }); break;
-      case 'warp': audio.play('warp'); break;
+      case 'warp': if (e.o === me) audio.play('warp'); break;
       case 'out':
         if (e.o !== me || this.over || (this.info.players || []).length <= 2) break;
         if (this.role === 'local' && this.game && !this.game.over) {
@@ -353,16 +357,19 @@ export class Match {
           this.hud.toast('😿 You are out! Watching the rest of the battle...', 'theirs', me);
         }
         break;
-      case 'boom': audio.play(e.fx === 'orbital' ? 'orbital' : 'explosion'); break;
+      case 'boom': audio.play('explosion'); break;
+      case 'bounced': audio.play('shield'); break;
+      case 'warpin': audio.play('warp', { vol: 0.6 }); break;
       case 'blocked': audio.play('shield'); break;
       case 'err': if (e.o === me) audio.play('error'); break;
       case 'spell': {
         const s = {
-          rally: 'buff', shield: 'shield', upgrade: 'upgrade', meteor: 'magic', frost: 'freeze', polymorph: 'magic', smoke: 'smoke',
-          shuriken: 'zap', portal: 'warp', feast: 'heal', pepper: 'buff', stink: 'curse', flop: 'explosion', fortify: 'shield',
-          nap: 'snore', tea: 'heal', bribe: 'coins', golden: 'coins', cannon: 'cannon', grog: 'buff', mutiny: 'hiss', coin: 'coinflip',
-          beckon: 'meow', jackpot: 'coins', zerog: 'magic', tractor: 'ufo', orbital: 'zap', laser: 'laser', turret: 'zap',
-          vacuum: 'vacuum', moon: 'heal', curse: 'curse', eclipse: 'curse', firewall: 'shield', hack: 'zap', drain: 'drain',
+          stone: 'shield', boots: 'buff', star: 'star', sneak: 'hiss', popup: 'upgrade', boom: 'cannon', ranks: 'buff', bomb: 'explosion',
+          shackle: 'curse', even: 'coinflip', fury: 'buff', fire: 'explosion', beam: 'warp', cloak: 'smoke', uturn: 'ufo', pods: 'warp',
+          spy: 'magic', fog: 'smoke', hypno: 'magic', fence: 'zap', intel: 'magic', rewind: 'warp', shortcut: 'warp', chain: 'zap',
+          kboom: 'heal', hush: 'snore', paper: 'magic', charm: 'meow', freeze: 'freeze', fly: 'buff', frost: 'freeze', tornado: 'vacuum',
+          vortex: 'buff', pfreeze: 'freeze', chicken: 'magic', magnet: 'ufo', crumble: 'explosion', revive: 'heal', home: 'warp', panic: 'hiss',
+          soul: 'magic', invuln: 'shield', slowmo: 'magic', plague: 'curse', defect: 'meow', bounce: 'shield', swap: 'coinflip', echo: 'curse',
         }[e.fx] || 'spell';
         audio.play('spell', { vol: 0.5 });
         audio.play(s, { vol: 0.85 });
@@ -393,28 +400,21 @@ export class Match {
   mySkill(slot) { const sp = this.myHero().spells[slot]; return sp ? skillAt(sp, ((this.info.players[this.me] || {}).skills || {})[sp.id] || 1) : null; }
   estAttack(V) {
     let forge = 0;
-    for (const b of V.buildings) if (b.owner === this.me && b.type === 'forge') forge += BUILDINGS.forge.atkBonus[b.level - 1];
+    for (const b of V.buildings) if (b.owner === this.me && b.type === 'forge' && !(b.fx & BBIT('frozen')) && !b.tlv) forge += BUILDINGS.forge.atkBonus[b.level - 1];
     const P = V.players[this.me];
-    let a = (1 + Math.min(0.6, forge)) * (1 + (P ? P.stars * PURR.atk : 0)) + (P && (P.buffs & 2) ? 0.5 : 0);
-    if (this.myHero().passive.id === 'chivalry') a *= 1.1;
-    return a;
+    return (1 + Math.min(0.6, forge)) * (1 + (P ? P.stars * PURR.atk : 0));
   }
   estSpeed(V) {
     const P = V.players[this.me];
-    const pas = this.myHero().passive.id;
     let v = BASE_SPEED * (1 + (P ? P.stars * PURR.spd : 0));
-    if (pas === 'lightpaws') v *= 1.2;
-    if (pas === 'starcharts') v *= 1.08;
     if (this.info.rules && this.info.rules.zoomies) v *= 1.5;
     return v;
   }
-  estDefense(b) {
-    let d = BUILDINGS[b.type].defense;
-    if (b.fx & BBIT('fortify')) d *= 1.5;
-    if (b.fx & BBIT('firewall')) d *= 1.6;
-    if (b.fx & BBIT('stink')) d *= 0.7;
-    if (b.fx & BBIT('shield')) d /= 0.3;
-    if (b.owner >= 0 && HERO_BY_ID[this.info.players[b.owner].hero].passive.id === 'bigboned') d /= 0.85;
+  /** a building's defense as far as I can tell (its owner's Purr Power stars are public) */
+  estDefense(b, V) {
+    let d = BUILDINGS[b.tlv ? 'tower' : b.type].defense;
+    if (b.owner >= 0 && V) { const P = V.players[b.owner]; if (P) d *= 1 + P.stars * PURR.def; }
+    if (b.fx & BBIT('paper')) d *= 0.25;
     return d;
   }
   refreshUI(V) {
@@ -431,7 +431,7 @@ export class Match {
           if (b) { n += Math.floor(b.count * this.pct); if (nav) walk = Math.max(walk, nav.len(id, tb.id)); }
         }
         if (tb.owner === this.me) ui.prediction = { text: `+${n} 🐾`, neutral: true };
-        else if (tb.count < 0) ui.prediction = { text: `${n} ⚔ ?`, neutral: true };   // enemy cats hidden (send the 🦉 Owl Scout)
+        else if (tb.count < 0) ui.prediction = { text: `${n} ⚔ ?`, neutral: true };   // enemy cats hidden
         else {
           // an enemy building keeps making kittens while your cats walk the long way round
           let defenders = tb.count;
@@ -442,7 +442,7 @@ export class Match {
             // a stray you already hurt grows back while you walk
             defenders = Math.min(tb.full, tb.count + strayRegrowRate(tb.full) * walk / this.estSpeed(V));
           }
-          const need = defenders * this.estDefense(tb) / this.estAttack(V);
+          const need = defenders * this.estDefense(tb, V) / this.estAttack(V);
           const good = n > need + 0.3;
           ui.prediction = { text: `${n} ⚔ ${Math.ceil(need)}${good ? ' ✔' : ''}`, good };
         }
@@ -495,6 +495,7 @@ export class Match {
     if (!sp) return;
     const P = this.view.players[this.me];
     if (this.ui.targetingSlot === slot) { this.cancelTargeting(); return; }
+    if (P && P.silenced) { audio.play('error'); this.hud.flashSpell(slot, '🤫 Hush! No skills right now'); return; }
     if (!P || P.cds[slot] > 0 || P.gcd > 0) { audio.play('error'); this.hud.flashSpell(slot, 'Recharging...'); return; }
     if (P.catnip < sp.cost) { audio.play('error'); this.hud.flashSpell(slot, 'Need more catnip!'); return; }
     this.closeMenu();
@@ -521,8 +522,6 @@ export class Match {
     else { audio.play('error'); this.hud.toast('Pick a highlighted building', 'warn'); }
   }
   upgrade(id) { this.sendCmd({ k: 'up', b: id }); }
-  /** Send the Owl Scout: see every enemy building's cats for a few seconds. */
-  scout() { audio.init(); this.sendCmd({ k: 'scout' }); }
   convert(id, to) { this.sendCmd({ k: 'conv', b: id, to }); this.closeMenu(); }
   emote(id) { this.sendCmd({ k: 'emote', id }); }
   surrender() { this.sendCmd({ k: 'surrender' }); }
@@ -620,7 +619,6 @@ export class Match {
       const k = ev.key.toLowerCase();
       const nSk = this.myHero().spells.length;
       if (k >= '1' && k <= '9' && +k <= nSk) this.selectSpell(+k - 1);
-      else if (k === String(nSk + 1)) this.scout();
       else if (k === 'q') this.setPct(0.25); else if (k === 'w') this.setPct(0.5); else if (k === 'e') this.setPct(0.75); else if (k === 'r') this.setPct(1);
       else if (k === 'escape') this.cancelAll();
       else if (k === 'u' && this.ui.hover != null) { const b = this.view.byId.get(this.ui.hover); if (b && b.owner === this.me) this.upgrade(b.id); }

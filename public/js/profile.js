@@ -16,7 +16,7 @@ function fresh() {
     heroes: HEROES.filter(h => h.cost === 0).map(h => h.id),
     furs: FURS.filter(f => f.cost === 0).map(f => f.id),
     hats: ['none'],
-    equip: { hero: 'whiskers', fur: 'ginger', hat: 'none' },
+    equip: { hero: 'pounce', fur: 'ginger', hat: 'none' },
     stats: { matches: 0, wins: 0, onlineMatches: 0, onlineWins: 0, captures: 0, spells: 0, produced: 0, bestStreak: 0, streak: 0, fastestWin: 0 },
     ach: {},
     campaign: {},

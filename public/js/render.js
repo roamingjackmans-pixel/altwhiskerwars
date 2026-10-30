@@ -6,6 +6,8 @@ import * as art from './art.js';
 
 const BIT = {}; BFX.forEach((n, i) => { BIT['b_' + n] = 1 << i; }); SFX.forEach((n, i) => { BIT['s_' + n] = 1 << i; });
 const has = (mask, name) => (mask & BIT[name]) !== 0;
+// building effects shown as a little orbiting icon: [flag, icon, phase]
+const B_ICONS = [['b_shackle', '⛓️', 0], ['b_ranks', '🐾', 1], ['b_pods', '🚀', 2], ['b_kboom', '🍼', 3], ['b_paper', '📄', 4], ['b_fly', '🎈', 5], ['b_soul', '🥄', 6], ['b_defect', '🏃', 7], ['b_echo', '📣', 8], ['b_plague', '🤢', 9], ['b_shortcut', '🕳️', 10], ['b_beam', '🛸', 11]];
 const FONT = (w, s) => `${w} ${s}px Fredoka, "Baloo 2", "Trebuchet MS", system-ui, sans-serif`;
 const TAU = Math.PI * 2;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -217,6 +219,7 @@ export class Renderer {
     if (!V) return;
 
     this.drawDecals(ctx, dt);
+    this.drawZones(ctx, V, t);
     if (ui) this.drawGroundUI(ctx, V, ui, t);
 
     // y-sorted drawables
@@ -257,28 +260,27 @@ export class Renderer {
     const hover = ui && (ui.hover === b.id || ui.target === b.id);
     const rad = b.radius;
     // under-effects
-    if (has(b.fx, 'b_shadowstep')) this.portalFx(ctx, b.x, b.y + rad * 0.15, rad * 1.05, t);
-    if (has(b.fx, 'b_fortify')) this.fortifyFx(ctx, b, t);
+    if (has(b.fx, 'b_beam') || has(b.fx, 'b_shortcut')) this.portalFx(ctx, b.x, b.y + rad * 0.15, rad * 1.05, t);
+    if (has(b.fx, 'b_stone')) this.fortifyFx(ctx, b, t);
     try {
-      art.drawBuilding(ctx, { x: b.x, y: b.y, type: b.type, level: b.level, owner: b.owner, radius: rad, flags: b.fx, hover, selected: sel, hit }, t);
+      art.drawBuilding(ctx, { x: b.x, y: b.y, type: b.tlv ? 'tower' : b.type, level: b.tlv || b.level, owner: b.owner, radius: rad, flags: b.fx, hover, selected: sel, hit }, t);
     } catch (e) {
       ctx.fillStyle = teamColor(b.owner).main; ctx.beginPath(); ctx.arc(b.x, b.y, rad, 0, TAU); ctx.fill();
     }
     // status overlays
-    if (has(b.fx, 'b_shield')) this.bubble(ctx, b.x, b.y - rad * 0.55, rad * 1.45, 'rgba(140,210,255,', t);
-    if (has(b.fx, 'b_firewall')) this.flameRing(ctx, b, t);
-    if (has(b.fx, 'b_stink')) this.stinkFx(ctx, b, t);
-    if (has(b.fx, 'b_curse')) this.curseFx(ctx, b, t);
-    if (has(b.fx, 'b_disabled')) this.sparksFx(ctx, b, t);
-    if (has(b.fx, 'b_tea')) this.iconOrbit(ctx, b, t, '🫖', 1);
+    if (has(b.fx, 'b_invuln')) this.bubble(ctx, b.x, b.y - rad * 0.55, rad * 1.45, 'rgba(255,215,90,', t);
+    if (has(b.fx, 'b_bounce')) this.bubble(ctx, b.x, b.y - rad * 0.55, rad * 1.5, 'rgba(200,170,255,', t);
+    if (has(b.fx, 'b_plague')) this.stinkFx(ctx, b, t);
+    if (has(b.fx, 'b_echo') || has(b.fx, 'b_defect')) this.curseFx(ctx, b, t);
+    if (has(b.fx, 'b_boom')) this.flameRing(ctx, b, t);
     if (has(b.fx, 'b_frozen')) this.iconOrbit(ctx, b, t, '❄️', 3);
-    if (has(b.fx, 'b_hack')) this.hackFx(ctx, b, t);
-    if (has(b.fx, 'b_turret')) this.turretFx(ctx, b, t);
+    for (const [bit, ch, n] of B_ICONS) if (has(b.fx, bit)) this.iconOrbit(ctx, b, t + n, ch, 1);
+    if (b.tlv) this.iconOrbit(ctx, b, t, '🗼', 1);
   }
 
   drawBadge(ctx, b) {
     const c = teamColor(b.owner);
-    // (another player's cats are hidden: count -1, shown as "?" until your Owl Scout flies over)
+    // (another player's cats are hidden: count -1, shown as "?" unless a spy skill shows it)
     const hidden = b.count < 0;
     const n = Math.floor(b.count);
     const k = this.uiScale;
@@ -361,10 +363,12 @@ export class Renderer {
       ctx.font = FONT(700, 10);
       for (let k = 0; k < 3; k++) { const a = t * 6 + k * TAU / 3; ctx.fillText('⭐', s.x + Math.cos(a) * 12, s.y - r - 8 + Math.sin(a) * 4); }
     }
-    if (has(s.fx, 's_haste') || (owner && (owner.buffs & 1))) {
-      if (this.fxLevel !== 'low' && Math.random() < 0.35) this.spawn({ x: s.x + rand(-r, r) * 0.6, y: s.y + rand(-4, 2), vx: left ? 30 : -30, vy: -10, life: 0.35, size: 3, color: has(s.fx, 's_haste') ? '#ff7a2f' : '#ffd84d', kind: 'dot' });
+    if (has(s.fx, 's_boost') || has(s.fx, 's_rage')) {
+      if (this.fxLevel !== 'low' && Math.random() < 0.35) this.spawn({ x: s.x + rand(-r, r) * 0.6, y: s.y + rand(-4, 2), vx: left ? 30 : -30, vy: -10, life: 0.35, size: 3, color: has(s.fx, 's_rage') ? '#ff4a2f' : '#ffd84d', kind: 'dot' });
     }
-    if (owner && (owner.buffs & 2) && this.fxLevel !== 'low' && Math.random() < 0.08) this.spawn({ x: s.x, y: s.y - 14, vx: rand(-10, 10), vy: -25, life: 0.6, size: 4, color: '#fff3c4', kind: 'dot' });
+    if (has(s.fx, 's_plague') && this.fxLevel !== 'low' && Math.random() < 0.12) this.spawn({ x: s.x + rand(-r, r) * 0.5, y: s.y - 12, vx: 0, vy: -20, life: 0.7, size: 4, color: '#8fdc4a', kind: 'dot' });
+    if (has(s.fx, 's_chicken')) { ctx.font = FONT(400, 18); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🐔', s.x + Math.sin(t * 6 + s.id) * 6, s.y - r - 10); }
+    if (has(s.fx, 's_fly')) { ctx.font = FONT(400, 16); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🎈', s.x - 10, s.y - r - 16 + Math.sin(t * 3 + s.id) * 3); }
     // high Purr Power: golden stars twinkle off the whole army
     if (owner && owner.stars >= 3 && this.fxLevel !== 'low' && Math.random() < 0.035 * (owner.stars - 2)) this.spawn({ x: s.x + rand(-r, r) * 0.7, y: s.y - 10 - rand(0, 12), vx: rand(-8, 8), vy: -28, life: 0.7, size: 3.5 + owner.stars * 0.4, color: owner.stars >= 5 ? '#ffe066' : '#ffd23d', kind: 'star' });
   }
@@ -395,9 +399,9 @@ export class Renderer {
     // tower range for hovered/selected tower
     const show = ui.selected ?? ui.hover;
     const hb = show != null ? byId.get(show) : null;
-    if (hb && (BUILDINGS[hb.type].range || has(hb.fx, 'b_turret'))) {
-      const def = BUILDINGS[hb.type];
-      const range = def.range ? def.range[hb.level - 1] : TURRET.range;
+    if (hb && (BUILDINGS[hb.type].range || hb.tlv)) {
+      const def = BUILDINGS[hb.tlv ? 'tower' : hb.type];
+      const range = def.range[Math.min(hb.tlv || hb.level, def.range.length) - 1];
       ctx.save();
       ctx.setLineDash([10, 8]); ctx.lineDashOffset = -t * 20;
       ctx.strokeStyle = teamColor(hb.owner).main; ctx.globalAlpha = 0.6; ctx.lineWidth = 2.5;
@@ -490,6 +494,63 @@ export class Renderer {
       }
     }
     if (ui.tut) this.drawTutorial(ctx, V, ui.tut, t);
+  }
+  /** lasting skill areas: fog, spy eye, u-turn field, vortex, tornado, fences, magnets */
+  drawZones(ctx, V, t) {
+    for (const z of V.zones || []) {
+      const c = teamColor(z.o), mine = z.o === this.me;
+      const fade = Math.min(1, z.left / 0.6);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      const circle = (fill, stroke, dash) => {
+        ctx.beginPath(); ctx.ellipse(z.x, z.y, z.r, z.r * 0.62, 0, 0, TAU);
+        if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 3; if (dash) { ctx.setLineDash(dash); ctx.lineDashOffset = -t * 30; } ctx.stroke(); ctx.setLineDash([]); }
+      };
+      const label = ch => { ctx.font = FONT(400, 24); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ch, z.x, z.y - z.r * 0.62 - 6); };
+      switch (z.k) {
+        case 'fog': {
+          circle('rgba(200,205,215,0.42)', null);
+          if (this.fxLevel !== 'low' && Math.random() < 0.3) this.spawn({ x: z.x + rand(-z.r, z.r) * 0.8, y: z.y + rand(-z.r, z.r) * 0.45, vx: rand(-10, 10), vy: -6, life: 1.6, size: rand(18, 30), color: 'rgba(230,232,240,0.5)', kind: 'puff' });
+          break;
+        }
+        case 'spy': circle(mine ? 'rgba(120,200,255,0.10)' : 'rgba(255,255,255,0.05)', hexA(c.main, 0.8), [6, 8]); label('🔭'); break;
+        case 'intel': circle('rgba(255,170,255,0.07)', hexA(c.main, 0.6), [4, 10]); label('🧠');
+          if (mine) for (const s of V.squads) {
+            if (s.owner === this.me || Math.hypot(s.x - z.x, (s.y - z.y) / 0.62) > z.r) continue;
+            const tb = V.byId.get(s.to); if (!tb) continue;
+            ctx.strokeStyle = hexA(teamColor(s.owner).main, 0.85); ctx.lineWidth = 2.5; ctx.setLineDash([5, 6]); ctx.lineDashOffset = -t * 40;
+            ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(tb.x, tb.y - tb.radius * 0.3); ctx.stroke(); ctx.setLineDash([]);
+          }
+          break;
+        case 'uturn': circle('rgba(255,120,200,0.14)', '#ff7ad0', [10, 6]); label('↩️'); break;
+        case 'vortex': {
+          circle('rgba(120,230,255,0.10)', null);
+          ctx.strokeStyle = 'rgba(140,235,255,0.75)'; ctx.lineWidth = 3;
+          for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(z.x, z.y, z.r * (0.35 + k * 0.25), z.r * (0.35 + k * 0.25) * 0.62, 0, t * (2 + k) + k, t * (2 + k) + k + 2.2); ctx.stroke(); }
+          break;
+        }
+        case 'tornado': {
+          ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.beginPath(); ctx.ellipse(z.x, z.y + 6, z.r, z.r * 0.4, 0, 0, TAU); ctx.fill();
+          for (let k = 0; k < 6; k++) {
+            const w = z.r * (0.35 + k * 0.13), y = z.y - k * 16;
+            ctx.strokeStyle = `rgba(170,180,200,${0.75 - k * 0.08})`; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.ellipse(z.x + Math.sin(t * 5 + k) * 6, y, w, w * 0.32, 0, t * 6 + k, t * 6 + k + 4.4); ctx.stroke();
+          }
+          if (this.fxLevel !== 'low' && Math.random() < 0.5) this.spawn({ x: z.x + rand(-z.r, z.r), y: z.y - rand(0, 60), vx: rand(-60, 60), vy: -40, life: 0.6, size: 4, color: '#9a8a70', kind: 'dot' });
+          break;
+        }
+        case 'fence': {
+          ctx.strokeStyle = `rgba(120,220,255,${0.6 + 0.4 * Math.sin(t * 20)})`; ctx.lineWidth = 3;
+          ctx.beginPath();
+          for (let k = 0; k <= 40; k++) { const a = k / 40 * TAU, j = (k % 2 ? 6 : -6) * Math.sin(t * 30 + k); const x = z.x + Math.cos(a) * (z.r + j), y = z.y + Math.sin(a) * (z.r + j) * 0.62; k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+          ctx.stroke();
+          break;
+        }
+        case 'magnet': circle('rgba(255,90,90,0.07)', hexA(c.main, 0.7), [14, 10]); label('🧲'); break;
+      }
+      ctx.restore();
+    }
   }
   /** Tutorial: glowing rings on the buildings it talks about, and a paw that shows the drag to make. */
   drawTutorial(ctx, V, tut, t) {
@@ -659,7 +720,10 @@ export class Renderer {
         break;
       }
       case 'boom': {
-        if (e.fx === 'meteor') {
+        if (e.fx === 'fire') {
+          this.shake = Math.max(this.shake, 10);
+          if (e.n) this.text(e.x, e.y - 40, `🔥 -${e.n}`, '#fff', 20, '#a3300f', 1.3);
+        } else if (e.fx === 'meteor') {
           this.ring(e.x, e.y, e.r * 1.1, '#ffb347', 0.5, 10);
           this.burst(e.x, e.y, { n: lowFx ? 12 : 46, colors: ['#ff6a2f', '#ffd84d', '#fff2c4', '#7a3a1a'], speed: 260, life: 0.9, size: 7, kind: 'puff' });
           this.decals.push({ x: e.x, y: e.y, r: e.r * 0.7, life: 6, max: 6, color: '40,20,10' });
@@ -683,6 +747,24 @@ export class Renderer {
         break;
       }
       case 'spell': this.spellFx(e, V); break;
+      case 'warpin': { const b = B(e.b); if (b) { this.ring(b.x, b.y, 80, '#b48cff', 0.6, 6); this.text(b.x, b.y - b.radius * 2, `🕳️ ${e.n}`, '#fff', 16, '#4b2a8a'); } break; }
+      case 'sneakhit': { const b = B(e.b); if (b) { this.burst(b.x, b.y - 20, { n: lowFx ? 4 : 12, colors: ['#333', '#fff'], speed: 120, life: 0.6, size: 5, kind: 'puff' }); this.text(b.x, b.y - b.radius * 2.3, `🥷 ${e.n}`, '#fff', 15, '#222'); } break; }
+      case 'chain': {
+        const pts = (e.pts || []).map(([x, y]) => this.fwd(x, y));
+        for (let k = 0; k < pts.length; k++) {
+          this.burst(pts[k].x, pts[k].y - 10, { n: lowFx ? 4 : 12, colors: ['#9ff', '#fff', '#ffe066'], speed: 140, life: 0.5, size: 4, kind: 'star' });
+          if (k) this.projs.push({ x0: pts[k - 1].x, y0: pts[k - 1].y - 10, x1: pts[k].x, y1: pts[k].y - 10, t: -k * 0.08, dur: 0.18, data: 1 });
+        }
+        break;
+      }
+      case 'echo': { const a = B(e.from), b = B(e.b); if (a && b) this.projs.push({ x0: a.x, y0: a.y - 30, x1: b.x, y1: b.y - 30, t: 0, dur: 0.5, soul: 1 }); if (b) this.text(b.x, b.y - b.radius * 1.6, '📣 -' + Math.round(e.n), '#fff', 14, '#7b3fbf'); break; }
+      case 'bounced': { const b = B(e.b); if (b) { this.ring(b.x, b.y, b.radius * 2, '#c8aaff', 0.5, 6); this.text(b.x, b.y - b.radius * 2, 'BOUNCED!', '#fff', 16, '#6a3fb8'); } break; }
+      case 'zapped': this.burst(e.x, e.y - 8, { n: lowFx ? 3 : 10, colors: ['#9ff', '#fff'], speed: 140, life: 0.4, size: 3, kind: 'star' }); break;
+      case 'splash': this.burst(e.x, e.y - 6, { n: lowFx ? 3 : 10, colors: ['#ff7a2f', '#ffd84d', '#555'], speed: 120, life: 0.45, size: 5, kind: 'puff' }); break;
+      case 'turned': this.emoji(e.x, e.y - 24, '↩️', 18, 0.8); break;
+      case 'panic': { const b = B(e.b); if (b) { this.emoji(b.x, b.y - 80, '😱', 34, 1.2); this.text(b.x, b.y - b.radius * 2.4, `${e.n} fled!`, '#fff', 16, '#a01d2c', 1.3); } break; }
+      case 'infect': { const b = B(e.b); if (b) this.emoji(b.x, b.y - 70, '🤢', 28, 1.1); break; }
+      case 'down': { const b = B(e.b); if (b) this.text(b.x, b.y - b.radius * 2, `▼ Level ${e.lv}`, '#fff', 16, '#6a4a3a', 1.4); break; }
     }
   }
   homeOf(V, o) {
@@ -701,70 +783,38 @@ export class Renderer {
     const enemyS = V.squads.filter(q => q.owner !== e.o);
     if (sp.target === 'area') this.ring(e.x, e.y, sp.radius, '#ffffff', 0.45, 4);
     switch (e.fx) {
-      case 'rally': for (const q of myB) this.ring(q.x, q.y, q.radius * 1.8, '#ffd84d', 0.6, 4); this.screenText('📯', 'RALLY!', e.o); break;
-      case 'shield': this.burst(x, y - 30, { n: 18, colors: ['#bfe6ff', '#fff'], speed: 120, life: 0.7, size: 4, kind: 'star' }); break;
-      case 'upgrade': this.emoji(x, y - 60, '📜', 34, 1.2); break;
-      case 'meteor': this.timed.push({ kind: 'meteor', x: e.x, y: e.y, r: sp.radius, t: 0, dur: sp.delay || 1.2 }); break;
-      case 'frost':
-        this.ring(e.x, e.y, sp.radius, '#bfefff', 0.7, 8);
-        for (let k = 0; k < (lowFx ? 8 : 26); k++) { const a = rand(0, TAU), r = rand(0, sp.radius); this.spawn({ x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r * 0.7, vx: rand(-15, 15), vy: rand(-40, -10), life: rand(0.8, 1.6), size: rand(10, 16), kind: 'emoji', text: '❄️' }); }
+      case 'stone': this.burst(x, y - 30, { n: 18, colors: ['#d8cbb0', '#fff'], speed: 120, life: 0.7, size: 4, kind: 'star' }); break;
+      case 'boots': case 'fury': case 'cloak': case 'chicken': case 'slowmo': case 'frost': case 'home': case 'charm': case 'rewind': {
+        const col = { boots: '#ffd84d', fury: '#ff4a2f', cloak: '#6d6a7a', chicken: '#ffe9a0', slowmo: '#8fd3ff', frost: '#bfefff', home: '#ffb38a', charm: '#ff7ab0', rewind: '#c4a6ff' }[e.fx];
+        const ch = { boots: '👢', fury: '😤', cloak: '💨', chicken: '🪶', slowmo: '🐌', frost: '❄️', home: '🏠', charm: '💘', rewind: '⏪' }[e.fx];
+        this.ring(e.x, e.y, sp.r || 120, col, 0.7, 8);
+        for (let k = 0; k < (lowFx ? 6 : 18); k++) { const a = rand(0, TAU), r = rand(0, sp.r || 120); this.spawn({ x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r * 0.62, vx: rand(-15, 15), vy: rand(-40, -10), life: rand(0.8, 1.4), size: rand(10, 16), kind: 'emoji', text: ch }); }
+        if (e.fx === 'charm' && e.res && e.res !== '0') this.text(e.x, e.y - 60, `+${e.res} joined!`, '#fff', 18, '#b0306a', 1.4);
         break;
-      case 'polymorph': this.burst(x, y - 30, { n: 30, colors: ['#e0a6ff', '#ff9ad5', '#fff'], speed: 160, life: 1, size: 6, kind: 'star' }); this.emoji(x, y - 70, '🪄', 30, 1); break;
-      case 'smoke':
-        for (let k = 0; k < (lowFx ? 10 : 30); k++) { const a = rand(0, TAU), r = rand(0, sp.radius); this.spawn({ x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r * 0.7, vx: rand(-20, 20), vy: rand(-25, -5), life: rand(1.2, 2.2), size: rand(14, 26), color: '#6d6a7a', kind: 'puff' }); }
-        break;
-      case 'shuriken': for (let k = 0; k < 6; k++) this.timed.push({ kind: 'shuriken', x, y: y - 20, sx: x + rand(-400, 400), sy: -40, t: -k * 0.08, dur: 0.45 }); break;
-      case 'portal': this.ring(x, y, 70, '#b48cff', 0.6, 5); break;
-      case 'feast': this.rain(x, y, '🐟', lowFx ? 5 : 12); this.text(x, y - 80, '+12', '#fff', 20, '#2f8a3a', 1.2); break;
-      case 'pepper':
-        this.ring(e.x, e.y, sp.radius, '#ff5a2f', 0.6, 8);
-        for (let k = 0; k < (lowFx ? 6 : 18); k++) { const a = rand(0, TAU), r = rand(0, sp.radius); this.spawn({ x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r * 0.7, vx: 0, vy: -50, life: 0.9, size: 14, kind: 'emoji', text: '🌶️' }); }
-        break;
-      case 'stink': this.emoji(x, y - 70, '🥫', 30, 1); break;
-      case 'flop':
-        this.timed.push({ kind: 'flop', x: e.x, y: e.y, r: sp.radius, t: 0, dur: 0.45 });
-        break;
-      case 'fortify': this.burst(x, y, { n: 16, colors: ['#c9b79a', '#8a7a64'], speed: 90, life: 0.8, size: 6, kind: 'puff' }); break;
-      case 'nap': for (const q of enemyS) this.emoji(q.x, q.y - 30, '💤', 18, 1.4); this.screenText('😴', 'NAP TIME!', e.o); break;
-      case 'tea': this.emoji(x, y - 70, '🫖', 30, 1.2); this.burst(x, y - 40, { n: 14, colors: ['#ffd1e8', '#fff'], speed: 80, life: 1, size: 5, kind: 'heart' }); break;
-      case 'bribe': this.rain(x, y, '💰', 8); this.burst(x, y - 30, { n: 24, colors: ['#ffd84d', '#fff2a8'], speed: 180, life: 1, size: 5, kind: 'star' }); break;
-      case 'golden': for (const q of myB) { this.burst(q.x, q.y - 30, { n: lowFx ? 4 : 12, colors: ['#ffd84d', '#fff'], speed: 90, life: 1, size: 4, kind: 'star' }); this.text(q.x, q.y - q.radius * 1.8, '+3', '#fff', 15, '#b8851d'); } break;
-      case 'cannon': {
+      }
+      case 'star': this.screenText('⭐', 'LUCKY STAR!', e.o); break;
+      case 'sneak': this.screenText('🥷', 'SNEAK ATTACK!', e.o); break;
+      case 'even': this.screenText('⚖️', 'EVEN PURR!', e.o); break;
+      case 'hush': this.screenText('🤫', 'HUSH!', e.o); break;
+      case 'pfreeze': this.screenText('⏸️', 'PURR FREEZE!', e.o); break;
+      case 'popup': case 'boom': case 'soul': this.burst(x, y - 50, { n: 16, colors: ['#bbb', '#ffd84d', '#fff'], speed: 100, life: 0.6, size: 4, kind: 'star' }); this.emoji(x, y - 70, sp.icon || '🗼', 30, 1); break;
+      case 'ranks': case 'fly': case 'beam': case 'shortcut': case 'pods': case 'kboom': this.emoji(x, y - 70, sp.icon || '✨', 30, 1.1); this.ring(x, y, 70, c.light, 0.6, 5); break;
+      case 'bomb': {
         const from = this.homeOf(V, e.o) || { x: x < 800 ? -40 : 1640, y: 200 };
         this.timed.push({ kind: 'cannon', x, y: y - 20, sx: from.x, sy: from.y - 40, t: 0, dur: 0.6 });
+        this.ring(x, y, sp.r || 90, '#ff7a2f', 0.8, 8);
         break;
       }
-      case 'grog': for (const q of myB) this.emoji(q.x, q.y - q.radius * 1.8, '🍺', 22, 1); this.screenText('🍺', 'GROG RUSH!', e.o); break;
-      case 'mutiny': this.ring(e.x, e.y, sp.radius * 1.2, '#222', 0.6, 8); for (let k = 0; k < 8; k++) this.emoji(e.x + rand(-60, 60), e.y + rand(-40, 40), '🏴‍☠️', 20, 1.2); if (e.res && e.res !== '0') this.text(e.x, e.y - 60, `+${e.res} defected!`, '#fff', 18, '#222', 1.4); break;
-      case 'coin': {
-        const home = this.homeOf(V, e.o);
-        const label = e.res === 'catnip' ? '+30 catnip!' : e.res === 'cats' ? '+3 cats everywhere!' : 'Free upgrade!';
-        if (home) { this.emoji(home.x, home.y - 90, '🪙', 34, 1.2); this.text(home.x, home.y - 120, label, '#fff', 17, '#b8851d', 1.6); }
+      case 'shackle': case 'paper': case 'freeze': case 'crumble': case 'defect': case 'echo': case 'plague': case 'panic': case 'hypno':
+        this.emoji(x, y - 80, sp.icon || '✨', 34, 1.3); this.ring(x, y, 80, c.main, 0.7, 6);
+        if (e.fx === 'hypno' && e.res) this.text(x, y - 110, `${e.res} hypnotized`, '#fff', 16, '#4b2a8a', 1.4);
         break;
-      }
-      case 'beckon': this.emoji(x, y - 80, '🐾', 34, 1.3); this.burst(x, y - 40, { n: 16, colors: ['#ff9ad5', '#fff'], speed: 90, life: 1, size: 5, kind: 'heart' }); break;
-      case 'jackpot': this.emoji(x, y - 80, '🎰', 36, 1.3); this.rain(x, y, '🪙', 10); this.burst(x, y - 40, { n: 30, colors: ['#ffd84d', '#ff6a8a', '#7dd3ff'], speed: 200, life: 1.2, size: 5, kind: 'confetti', gravity: 220 }); break;
-      case 'zerog':
-        this.ring(e.x, e.y, sp.radius, '#c4a6ff', 0.8, 6);
-        for (let k = 0; k < (lowFx ? 6 : 20); k++) { const a = rand(0, TAU), r = rand(0, sp.radius); this.spawn({ x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r * 0.7, vx: 0, vy: -20, life: 2, size: rand(5, 10), color: 'rgba(196,166,255,0.8)', kind: 'bubble' }); }
-        break;
-      case 'tractor': this.timed.push({ kind: 'ufo', x: e.x, y: e.y, r: sp.radius, t: 0, dur: 1.8 }); break;
-      case 'orbital': this.timed.push({ kind: 'reticle', b: e.b, x, y, t: 0, dur: sp.delay || 2.5 }); break;
-      case 'laser': this.timed.push({ kind: 'laser', x: e.x, y: e.y, r: sp.radius, t: 0, dur: sp.dur || 4 }); break;
-      case 'turret': this.burst(x, y - 50, { n: 12, colors: ['#bbb', '#fff'], speed: 90, life: 0.6, size: 4, kind: 'star' }); break;
-      case 'vacuum': this.timed.push({ kind: 'vacuum', x: e.x, y: e.y, r: sp.radius, t: 0, dur: 1.4 }); break;
-      case 'moon': this.timed.push({ kind: 'beam', x, y, t: 0, dur: 1.0, color: '#e6e9ff' }); this.burst(x, y - 30, { n: 20, colors: ['#e6e9ff', '#b9c4ff'], speed: 100, life: 1.2, size: 4, kind: 'star', gravity: -30 }); break;
-      case 'curse': this.emoji(x, y - 80, '🐈‍⬛', 34, 1.4); this.ring(x, y, 80, '#7b3fbf', 0.7, 6); break;
-      case 'eclipse': this.screenText('🌑', 'ECLIPSE!', e.o); break;
-      case 'firewall': this.ring(x, y, 70, '#ff7a2f', 0.6, 6); break;
-      case 'hack': this.text(x, y - 90, 'HACKED!', '#7dff9a', 18, '#0b3d1a', 1.4); break;
-      case 'drain': {
-        const home = this.homeOf(V, e.o);
-        const opp = V.buildings.filter(q => q.owner >= 0 && q.owner !== e.o);
-        if (home) for (const q of opp.slice(0, 8)) this.projs.push({ x0: q.x, y0: q.y - 30, x1: home.x, y1: home.y - 30, t: -Math.random() * 0.3, dur: 0.9, data: 1 });
-        if (home && e.res) this.text(home.x, home.y - 110, `+${e.res} catnip`, '#fff', 17, '#1b6f8a', 1.4);
-        break;
-      }
+      case 'fire': this.timed.push({ kind: 'firering', x: e.x, y: e.y, r: sp.r || 120, t: 0, dur: 0.8 }); break;
+      case 'tornado': case 'vortex': case 'uturn': case 'spy': case 'fog': case 'intel': this.ring(e.x, e.y, sp.r || 90, '#ffffff', 0.5, 4); break;
+      case 'fence': case 'magnet': case 'invuln': case 'bounce': this.ring(x, y, 90, c.light, 0.6, 6); this.emoji(x, y - 80, sp.icon || '✨', 30, 1.1); break;
+      case 'revive': this.timed.push({ kind: 'beam', x, y, t: 0, dur: 1.0, color: '#e6e9ff' }); if (e.res) this.text(x, y - 90, `+${e.res}`, '#fff', 20, '#2f8a3a', 1.2); break;
+      case 'swap': this.burst(x, y - 30, { n: 30, colors: ['#e0a6ff', '#7dd3ff', '#fff'], speed: 160, life: 1, size: 6, kind: 'star' }); this.emoji(x, y - 70, '🔀', 32, 1); break;
+      case 'chain': break;
     }
   }
   screenText(icon, text, owner) { this.timed.push({ kind: 'screentext', icon, text, owner, t: 0, dur: 1.4 }); }
@@ -916,6 +966,13 @@ export class Renderer {
           ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r * (0.3 + u * 0.7), e.r * (0.3 + u * 0.7) * 0.5, 0, 0, TAU); ctx.fill();
           ctx.font = FONT(400, 60 + u * 40); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText('🐈', e.x, e.y - 260 * s * s - 20);
+          break;
+        }
+        case 'firering': {
+          const rr = e.r * ease(u);
+          ctx.strokeStyle = `rgba(255,110,40,${1 - u})`; ctx.lineWidth = 14 * (1 - u) + 3;
+          ctx.beginPath(); ctx.ellipse(e.x, e.y, rr, rr * 0.62, 0, 0, TAU); ctx.stroke();
+          if (this.fxLevel !== 'low') for (let j = 0; j < 4; j++) { const a = rand(0, TAU); this.spawn({ x: e.x + Math.cos(a) * rr, y: e.y + Math.sin(a) * rr * 0.62, vx: 0, vy: -50, life: 0.4, size: rand(6, 11), color: j % 2 ? '#ffb347' : '#ff5a2f', kind: 'puff' }); }
           break;
         }
         case 'beam': {

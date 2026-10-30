@@ -2,7 +2,7 @@
 // A real battle on a small practice field. A coach card walks you through it one step at a time: each step points
 // at what to do (glowing rings, a paw that shows the drag, glowing buttons) and waits until you have done it.
 // The red cat stays still until the last step, except when the tutorial sends it in to show you something.
-import { BUILDINGS, CONVERT_COST, SCOUT, PURR, purrLevel, HERO_BY_ID, skillAt } from '../shared/data.js';
+import { BUILDINGS, CONVERT_COST, PURR, purrLevel, HERO_BY_ID } from '../shared/data.js';
 import { audio } from './audio.js';
 
 // The practice field: you on the left, the red cat on the right, strays in between.
@@ -35,6 +35,8 @@ export class Tutorial {
 
   /** extra room the battlefield leaves at the top for the coach card */
   space() { return this.cardH ? this.cardH + 10 : 0; }
+  /** the coach card on screen (buildings are kept out from under it) */
+  rect() { return this.card && this.card.isConnected && this.cardH ? this.card.getBoundingClientRect() : null; }
 
   start() {
     const root = this.m.hud.root;
@@ -204,51 +206,76 @@ export class Tutorial {
         done: () => this.saw(e => e.k === 'conv' && e.o === 0 && (e.to === 'forge' || e.to === 'garden')),
       },
       {
-        title: 'Hidden enemies', glow: ['.spell.scout'], hl: [ENEMY_A, ENEMY_B, ENEMY_HOME].filter(Boolean),
-        text: `Notice the <b>?</b> on red buildings: <b>nobody can see how many cats are inside a rival's buildings</b>. Not you, and not the computer either. Cats walking on the road always show their numbers.
-          Use the <b>${SCOUT.icon} ${SCOUT.name}</b> skill (${ph ? 'the owl button' : 'hotkey <kbd>4</kbd>'}, ${SCOUT.cost} 🌿 catnip) to see every enemy count for ${SCOUT.dur} seconds.`,
-        waitLabel: `👆 Send the ${SCOUT.name}`,
-        done: () => this.saw(e => e.k === 'scout' && e.o === 0),
-      },
-      {
-        title: 'Attack!', hl: () => [ENEMY_A, ENEMY_B].filter(id => this.owner(id) === 1),
-        text: `Now you can see them. Attack a red building with <b>more cats than it has</b>, plus a few extra: it keeps making kittens while your cats walk.
-          <div class="tc-tip">A building you take from your rival <b>drops one level</b>, so their best buildings are worth less once you own them.</div>`,
-        waitLabel: '👆 Capture a red building',
-        done: () => this.saw(e => e.k === 'cap' && e.o === 0 && e.prev === 1),
-      },
-      {
-        title: 'Purr Power', hold: true, next: true, glow: ['.purr'],
+        title: 'Hidden enemies', hold: true, next: true, hl: [ENEMY_A, ENEMY_B, ENEMY_HOME],
         text: () => {
-          const lv = purrLevel(P().purr);
-          return `That capture made your cats purr! The <b>Purr Power</b> stars show how confident your army is. Every star makes <b>all</b> your cats stronger:
+          const h = this.hero();
+          return `Notice the <b>?</b> on red buildings: <b>nobody can see how many cats are inside a rival's buildings</b>. Not you, and not the computer either. Cats walking on the road always show their numbers.
           <div class="tc-jobs">
-            <div>⚔ <b>+${Math.round(PURR.atk * 100)}% attack</b> and 🛡 <b>+${Math.round(PURR.def * 100)}% defense</b> per star</div>
-            <div>💨 <b>+${Math.round(PURR.spd * 100)}% speed</b> and 🐱 <b>+${Math.round(PURR.prod * 100)}% kittens</b> per star</div>
-            <div>🌿 catnip refills <b>+${Math.round(PURR.energy * 100)}% faster</b> per star</div>
+            <div>👁 Only two heroes have a skill that looks inside: <b>Agent Velvet</b> (Spy Eye shows every building in an area) and <b>Chef Grimsby</b> (Food Poisoning shows the building it poisons).</div>
+            <div>🧮 Everyone else has to <b>guess</b>: remember what a building had, watch the squads that leave it and arrive at it, and count on it making kittens while you wait.</div>
           </div>
-          At 5 stars your army is about <b>${Math.round((1 + PURR.atk * 5) * (1 + PURR.def * 5) * 100 - 100)}% stronger</b> in a fight than at 0. That's huge.
-          <div class="tc-jobs">
-            <div>📈 <b>Earn it:</b> capture buildings (most from rival buildings), win fights on the road, beat back attacks, upgrade.</div>
-            <div>📉 <b>Lose it:</b> lose buildings, lose cats in failed attacks, or sit doing nothing. Purr also cools down slowly over time, so keep attacking.</div>
-          </div>
-          You have <b>${lv} ★</b> right now.`;
+          ${h.sees ? `<div class="tc-tip">👁 Good news: <b>${h.name}</b> is one of the heroes who can look inside!</div>` : ''}`;
         },
       },
       {
         title: 'Hero skills', glow: ['.spell[data-slot]'],
         text: () => {
           const h = this.hero();
-          return `Your hero, <b>${h.name}</b>, has ${h.spells.length} skills. Skills cost <b>🌿 catnip</b>. You start with none and it refills slowly, faster with Catnip Gardens and high Purr Power. ${ph ? 'Tap a skill (hold it to read what it does)' : 'Click a skill or press <kbd>1</kbd>-<kbd>' + h.spells.length + '</kbd> (hover to read it)'}, then tap the map or a glowing building.
-            <div class="tc-tip">Between battles you can <b>upgrade every skill with 🐟 fish</b> in the Heroes screen: each level makes it stronger.</div>`;
+          return `Your hero, <b>${h.name}</b>, has <b>${h.spells.length} skills</b> that cost catnip: 20, 40, 60 and 80, so the strongest ones take a while to save up for. ${ph ? 'Tap a skill (hold it to read what it does)' : 'Click a skill or press <kbd>1</kbd>-<kbd>' + h.spells.length + '</kbd> (hover to read it)'}, then tap the map or a glowing building.
+            <div class="tc-tip">Between battles, <b>level up every skill with 🐟 fish</b> on the Heroes screen: shorter cooldowns and bigger effects.</div>
+            <div class="tc-live"></div>`;
         },
+        live: V => { const me = V.players[0]; return me ? `<div class="tc-tip">🌿 Catnip: <b>${Math.floor(me.catnip)}</b>. Your first skill costs 20.</div>` : ''; },
         waitLabel: '👆 Use one of your hero skills',
         done: () => this.saw(e => e.k === 'spell' && e.o === 0),
       },
       {
+        title: 'Attack!', hl: () => [ENEMY_A, ENEMY_B].filter(id => this.owner(id) === 1),
+        text: `Attack a red building with <b>more cats than it has</b>, plus a few extra: it keeps making kittens while your cats walk. These cottages started with 6 cats and grow about one every 2-3 seconds, so bring plenty.
+          <div class="tc-tip">A building you take from your rival <b>drops one level</b>, so their best buildings are worth less once you own them.</div>`,
+        waitLabel: '👆 Capture a red building',
+        done: () => this.saw(e => e.k === 'cap' && e.o === 0 && e.prev === 1),
+      },
+      {
+        title: 'Purr Power', hold: true, next: true, glow: ['.purr'],
+        text: () => `The stars by your name are your army's <b>Purr Power</b>. Each star makes <b>every one</b> of your cats tougher:
+          <div class="tc-jobs">
+            <div>🛡 <b>+${Math.round(PURR.def * 100)}% defense</b>, ⚔ <b>+${Math.round(PURR.atk * 100)}% attack</b> and 💨 <b>+${Math.round(PURR.spd * 100)}% speed</b> per star.</div>
+            <div>At 4 stars one of your defenders is worth <b>two</b> attackers from a 0-star army. <b>Never attack into a rival with more stars!</b></div>
+          </div>
+          <div class="tc-jobs">
+            <div>📈 <b>Earn it:</b> capture buildings (a rival's are worth the most), upgrade, and knock out cats that attack you (+${PURR.killDefending} each).</div>
+            <div>📉 <b>Lose it:</b> lose buildings, lose cats while attacking (${PURR.lostAttacking} each), or sit still. The more stars you have, the faster they drain when you stop doing things.</div>
+            <div>🌿 Cats you lose attacking give back a little catnip, and a lot more when your Purr Power is low.</div>
+          </div>
+          <div class="tc-live"></div>`,
+        live: V => this.purrLine(V),
+      },
+      {
+        title: 'Earn a star', glow: ['.purr'], hl: () => [this.strongest()],
+        enter: () => {
+          // a head start, then the red cat throws a raid at your strongest building: every cat you knock out is +10
+          const p = P();
+          if (purrLevel(p.purr) < 1) g().setPurr(0, Math.max(p.purr, PURR.stars[1] - 220));
+          const to = this.strongest();
+          const from = g().buildings.filter(b => b.owner === 1).map(b => b.id);
+          if (from.length && to != null) g().command(1, { k: 'send', from, to, pct: 0.6 });
+        },
+        text: `Here comes a raid on your strongest building! Every attacker it knocks out gives you <b>+${PURR.killDefending}</b> Purr, and every cat the red cat throws away costs it Purr. Send more cats there if it looks thin.
+          <div class="tc-live"></div>`,
+        live: V => this.purrLine(V),
+        waitLabel: '⭐ Beat back the raid',
+        done: () => {
+          if (purrLevel(P().purr) >= 1 && this.t > 2) return true;
+          // the raid is over: whatever happened, hand out the first star so the lesson can carry on
+          if (this.t > 4 && !g().squads.some(s => s.owner === 1)) { g().setPurr(0, Math.max(P().purr, PURR.stars[1] + 20)); return true; }
+          return false;
+        },
+      },
+      {
         title: 'Win the battle', next: true, nextLabel: 'Let\'s go! ⚔️', hold: true,
-        text: `That's everything! Your rival will now fight back for real. Take every red building to win.
-          <div class="tc-tip">Remember: towers on the front, forges and gardens at the back, scout before big attacks, and keep your Purr Power high.</div>`,
+        text: () => `${purrLevel(P().purr) >= 1 ? '⭐ <b>Your first star!</b> Your buildings now defend ' + Math.round(PURR.def * 100) + '% better. ' : ''}That's everything! Your rival will now fight back for real. Take every red building to win.
+          <div class="tc-tip">Remember: towers on the front, forges and gardens at the back, guess hidden armies generously, and keep doing things so your Purr Power doesn't drain.</div>`,
       },
       {
         title: 'Win the battle', hl: () => g().buildings.filter(b => b.owner === 1).map(b => b.id),
@@ -259,7 +286,17 @@ export class Tutorial {
       },
     ];
   }
-}
 
-/** a short line for the results screen */
-export function tutorialSkill(heroId, slot) { const h = HERO_BY_ID[heroId]; return h ? skillAt(h.spells[slot], 1) : null; }
+  /** your building that can take the most punishment */
+  strongest() {
+    const g = this.m.game;
+    const mine = g.buildings.filter(b => b.owner === 0);
+    if (!mine.length) return null;
+    return mine.reduce((a, b) => (b.count * g.defense(b) > a.count * g.defense(a) ? b : a)).id;
+  }
+  purrLine(V) {
+    const p = this.m.game.players[0], lv = purrLevel(p.purr);
+    const next = lv < 5 ? PURR.stars[lv + 1] : null;
+    return `<div class="tc-tip">⭐ You: <b>${lv} star${lv === 1 ? '' : 's'}</b> · ${Math.floor(p.purr)} purr${next ? ` (next star at ${next})` : ' (max!)'}</div>`;
+  }
+}

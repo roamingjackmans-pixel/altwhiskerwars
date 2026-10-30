@@ -1,5 +1,5 @@
 // Whisker Wars in-match HUD (HTML overlay on top of the canvas).
-import { HERO_BY_ID, HEROES, skillAt, BUILDINGS, CONVERT_COST, EMOTES, MAX_CATNIP, RULES, PURR, teamColor, findSpell, SCOUT } from '../shared/data.js';
+import { HERO_BY_ID, HEROES, skillAt, BUILDINGS, CONVERT_COST, EMOTES, MAX_CATNIP, RULES, PURR, purrFill, teamColor, findSpell } from '../shared/data.js';
 import { heroPortraitURL } from './art.js';
 import { audio } from './audio.js';
 import { profile, setSetting, save as saveProfile } from './profile.js';
@@ -8,10 +8,10 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 const fmtTime = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const TARGET_LABEL = { own: 'Your building', enemy: 'Enemy building', neutral: 'Stray building', notown: 'Enemy or stray building', area: 'Area', global: 'Instant' };
 const safeURL = (id, s) => { try { return heroPortraitURL(id, s); } catch { return ''; } };
-const PURR_TIP = `Purr Power: capture buildings, win fights and beat back attacks to earn stars. Each star gives ALL your cats +${Math.round(PURR.atk * 100)}% attack, +${Math.round(PURR.def * 100)}% defense, +${Math.round(PURR.spd * 100)}% speed, +${Math.round(PURR.prod * 100)}% kittens and +${Math.round(PURR.energy * 100)}% catnip. Losing buildings, wasting cats and sitting still drain it, and it cools down over time.`;
+const PURR_TIP = `Purr Power: your army's morale. Each star gives ALL your cats +${Math.round(PURR.def * 100)}% defense, +${Math.round(PURR.atk * 100)}% attack and +${Math.round(PURR.spd * 100)}% speed. Earn it by capturing (rival buildings most), upgrading and knocking out attackers. Losing buildings, losing cats in attacks and sitting still drain it, fast at high stars.`;
 // five stars; the next one fills up as you earn purr
 const purrMeter = (side, label = true) => `<span class="purr" data-side="${side}" title="${PURR_TIP}">${label ? '<span class="pl">PURR</span>' : ''}<span class="pss">${'<i class="ps">★</i>'.repeat(5)}</span><span class="pb"></span></span>`;
-const purrBonus = n => n > 0 ? `+${Math.round(n * PURR.atk * 100)}% ⚔ +${Math.round(n * PURR.def * 100)}% 🛡 +${Math.round(n * PURR.spd * 100)}% 💨` : '';
+const purrBonus = n => n > 0 ? `+${Math.round(n * PURR.def * 100)}% 🛡 +${Math.round(n * PURR.atk * 100)}% ⚔ +${Math.round(n * PURR.spd * 100)}% 💨` : '';
 
 export class Hud {
   constructor(root, match) {
@@ -53,17 +53,14 @@ export class Hud {
     const rules = RULES.filter(r => info.rules && info.rules[r.id]);
     const ruleIcons = rules.length ? `<div class="rule-icons">${rules.map(r => `<span title="${r.name}: ${r.desc}">${r.icon}</span>`).join('')}</div>` : '';
     // one coloured share of the bar per player: you first, then the others
-    const armybar = `<div class="armybar" title="Buildings each player holds. Your cats on the left; enemy cats stay hidden until your Owl Scout flies over">
+    const armybar = `<div class="armybar" title="Buildings each player holds. Your cats on the left; enemy cats are hidden">
             ${[me, ...this.opps].map(i => `<div class="fill${i === me ? ' me' : ''}" data-o="${i}" style="background:${teamColor(i).main}"></div>`).join('')}
             <span class="l">0</span><span class="r">0</span>
           </div>`;
     const oppCards = `<div class="opps${many ? ' many' : ''}">${this.opps.map(o => card(o, 'opp')).join('')}</div>`;
     const spellBtns = this.sk.map((s, k) => `<button class="spell" data-slot="${k}">
               <span class="sicon">${s.icon}</span><span class="scost">${s.cost}</span>
-              <div class="scd"></div><span class="scdtxt"></span>${phone ? '' : `<kbd>${k + 1}</kbd>`}</button>`).join('')
-      // every hero can send the Owl Scout to peek at enemy cats
-      + `<button class="spell scout" aria-label="${SCOUT.name}"><span class="sicon">${SCOUT.icon}</span><span class="scost">${SCOUT.cost}</span>
-              <div class="scd"></div><span class="scdtxt"></span>${phone ? '' : `<kbd>${nSk + 1}</kbd>`}</button>`;
+              <div class="scd"></div><span class="scdtxt"></span>${phone ? '' : `<kbd>${k + 1}</kbd>`}</button>`).join('');
     const catnip = `<div class="catnip" title="Catnip: spell energy. Gardens make it faster.">
             <div class="catnip-fill"></div><span class="catnip-txt">🌿 0</span>
           </div>`;
@@ -135,7 +132,7 @@ export class Hud {
     this.els = {
       timer: $('.timer'), fills: [...this.root.querySelectorAll('.armybar .fill')], armyL: $('.armybar .l'), armyR: $('.armybar .r'),
       cards: [...this.root.querySelectorAll('.pcard[data-o]')],
-      catFill: $('.catnip-fill'), catTxt: $('.catnip-txt'), spells: [...this.root.querySelectorAll('.spell[data-slot]')], scout: $('.spell.scout'),
+      catFill: $('.catnip-fill'), catTxt: $('.catnip-txt'), spells: [...this.root.querySelectorAll('.spell[data-slot]')],
       purr: [...this.root.querySelectorAll('.purr')].map(e => ({ e, side: e.dataset.side, stars: [...e.querySelectorAll('.ps')], bonus: e.querySelector('.pb'), n: -1, v: -1 })),
       bMe: [...this.root.querySelectorAll('.pcard.me .bcount, .mystat .bcount')], bOpp: [...this.root.querySelectorAll('.pcard.opp .bcount')],
       toasts: $('.toasts'), bmenu: $('.bmenu'), tip: $('.spell-tip'), wheel: $('.emote-wheel'), hint: $('.targeting-hint'), ping: $('.ping'),
@@ -159,20 +156,6 @@ export class Hud {
         b.addEventListener('pointerleave', () => { const t = this.m.ui.targetingSlot; if (t >= 0) this.showTip(t, this.els.spells[t]); else this.els.tip.classList.add('hidden'); });
       }
     });
-    // Owl Scout: tap to send it (phones: press and hold to read what it does)
-    const sb = this.els.scout;
-    if (this.phone) {
-      let timer = null, held = false;
-      sb.addEventListener('pointerdown', () => { held = false; timer = setTimeout(() => { held = true; this.showTip('scout', sb); }, 420); });
-      const end = () => { clearTimeout(timer); if (held) setTimeout(() => this.els.tip.classList.add('hidden'), 1400); };
-      sb.addEventListener('pointerup', end); sb.addEventListener('pointercancel', end); sb.addEventListener('pointerleave', end);
-      sb.addEventListener('contextmenu', ev => ev.preventDefault());
-      sb.addEventListener('click', ev => { if (held) { ev.preventDefault(); held = false; return; } this.m.scout(); });
-    } else {
-      sb.addEventListener('click', () => this.m.scout());
-      sb.addEventListener('pointerenter', () => this.showTip('scout', sb));
-      sb.addEventListener('pointerleave', () => this.els.tip.classList.add('hidden'));
-    }
     const all = $('.all-btn');
     if (all) all.addEventListener('click', () => { audio.init(); this.m.toggleAll(); });
     $('.emote-btn').addEventListener('click', () => this.toggleEmotes());
@@ -237,10 +220,10 @@ export class Hud {
     return { top: Math.round((top ? top.bottom : 40) + 2), bottom: 4, left: Math.round(leftEdge + 4), right: Math.round(W - rightEdge + 4) };
   }
   showTip(slot, btn) {
-    const s = slot === 'scout' ? SCOUT : this.sk[slot];
+    const s = this.sk[slot];
     const tip = this.els.tip;
     tip.innerHTML = `<div class="tt-h">${s.icon} ${s.name}${s.level ? ` <span class="tt-lv">Lv ${s.level}</span>` : ''}</div><div class="tt-d">${s.text || s.desc}</div>
-      <div class="tt-m"><span>🌿 ${s.cost}</span><span>⏱ ${s.cd}s</span><span>🎯 ${TARGET_LABEL[s.target]}</span>${this.phone ? '' : `<span class="tt-k">hotkey <kbd>${slot === 'scout' ? this.sk.length + 1 : slot + 1}</kbd></span>`}</div>`;
+      <div class="tt-m"><span>🌿 ${s.cost}</span><span>⏱ ${s.cd}s</span><span>🎯 ${TARGET_LABEL[s.target]}</span>${this.phone ? '' : `<span class="tt-k">hotkey <kbd>${slot + 1}</kbd></span>`}</div>`;
     tip.classList.remove('hidden');
     const r = btn.getBoundingClientRect();
     tip.style.left = Math.max(8, Math.min(window.innerWidth - 268, r.left + r.width / 2 - 130)) + 'px';
@@ -293,7 +276,7 @@ export class Hud {
     if (!this.tense && remain < 90 && !this.m.over) { this.tense = true; audio.music('tense'); }
     const owned = {};
     for (const b of V.buildings) owned[b.owner] = (owned[b.owner] || 0) + 1;
-    // enemy armies are hidden (-1) unless your Owl Scout is out: then the bar shares out buildings held instead
+    // enemy armies are hidden (-1): then the bar shares out buildings held instead
     const hiddenArmy = others.some(p => p.army < 0);
     const share = (p, i) => (hiddenArmy ? owned[i] || 0 : Math.max(0, p ? p.army : 0));
     const tot = Math.max(1, share(me, this.me) + this.opps.reduce((a, i) => a + share(V.players[i], i), 0));
@@ -305,8 +288,10 @@ export class Hud {
       const pl = P.side === 'me' ? me : V.players[+P.side];
       if (!pl) continue;
       const v = pl.purr || 0, n = pl.stars;
+      P.e.classList.toggle('locked', !!pl.purrLock);
       if (v === P.v && n === P.n) continue;
-      P.stars.forEach((s, k) => { const f = Math.max(0, Math.min(1, (v - k * PURR.perStar) / PURR.perStar)); s.style.setProperty('--f', f.toFixed(2)); s.classList.toggle('on', k < n); });
+      // full stars, then the next one filling up
+      P.stars.forEach((s, k) => { const f = k < n ? 1 : k === n ? purrFill(v) : 0; s.style.setProperty('--f', f.toFixed(2)); s.classList.toggle('on', k < n); });
       P.bonus.textContent = purrBonus(n);
       if (P.n >= 0 && n !== P.n) { P.e.classList.remove('up', 'down'); void P.e.offsetWidth; P.e.classList.add(n > P.n ? 'up' : 'down'); }
       P.e.classList.toggle('max', n >= 5);
@@ -316,6 +301,7 @@ export class Hud {
     this.els.bOpp.forEach(e => { e.textContent = '🏠 ' + (owned[+e.closest('.pcard').dataset.o] || 0); });
     this.els.catFill.style.width = (me.catnip / MAX_CATNIP * 100) + '%';
     this.els.catTxt.textContent = '🌿 ' + Math.floor(me.catnip);
+    this.root.classList.toggle('hushed', !!me.silenced);
     this.sk.forEach((s, k) => {
       const b = this.els.spells[k];
       const cd = me.cds[k] || 0;
@@ -327,16 +313,6 @@ export class Hud {
       else if (me.catnip < s.cost) { const need = (s.cost - me.catnip) / MAX_CATNIP; cdEl.style.background = `linear-gradient(to top, transparent ${100 - need * 100}%, rgba(20,16,40,0.45) 0)`; txt.textContent = ''; }
       else { cdEl.style.background = 'none'; txt.textContent = ''; }
     });
-    {
-      const b = this.els.scout, cd = me.scoutCd || 0;
-      b.classList.toggle('poor', me.catnip < SCOUT.cost);
-      b.classList.toggle('ready', cd <= 0 && me.catnip >= SCOUT.cost);
-      b.classList.toggle('active', !!me.scouting);
-      const cdEl = b.querySelector('.scd'), txt = b.querySelector('.scdtxt');
-      if (cd > 0) { cdEl.style.background = `conic-gradient(rgba(20,16,40,0.72) ${cd / SCOUT.cd * 360}deg, transparent 0)`; txt.textContent = Math.ceil(cd); }
-      else if (me.catnip < SCOUT.cost) { const need = (SCOUT.cost - me.catnip) / MAX_CATNIP; cdEl.style.background = `linear-gradient(to top, transparent ${100 - need * 100}%, rgba(20,16,40,0.45) 0)`; txt.textContent = ''; }
-      else { cdEl.style.background = 'none'; txt.textContent = ''; }
-    }
     const ping = this.m.opts.getPing ? this.m.opts.getPing() : null;
     this.els.ping.textContent = ping != null ? `📶 ${ping} ms` : '';
   }
@@ -381,7 +357,7 @@ export class Hud {
     const stars = '★'.repeat(n) + '<s>' + '★'.repeat(5 - n) + '</s>';
     const b = el('div', 'purr-burst ' + (up ? 'up' : 'down'), up
       ? `<div class="pbs">${stars}</div><div class="pbt">PURR POWER${n >= 5 ? ' MAX!' : '!'}</div><div class="pbd">All your cats ${purrBonus(n)}</div>`
-      : `<div class="pbs">${stars}</div><div class="pbt">Purr Power down</div><div class="pbd">${n ? 'Now ' + purrBonus(n) : 'Capture buildings to purr again'}</div>`);
+      : `<div class="pbs">${stars}</div><div class="pbt">Purr Power down</div><div class="pbd">${n ? 'Now ' + purrBonus(n) : 'Capture buildings and beat back attacks to purr again'}</div>`);
     this.root.appendChild(b);
     setTimeout(() => b.remove(), up ? 2200 : 1700);
   }
@@ -429,7 +405,7 @@ export class Hud {
     const b = V.byId.get(this.bmenuFor);
     if (!b) return this.closeBMenu();
     const def = BUILDINGS[b.type];
-    const eng = HERO_BY_ID[this.info.players[this.me].hero].passive.id === 'engineering';
+    const eng = false;
     const cost = def.upgradeCost[b.level - 1] != null ? (eng ? Math.ceil(def.upgradeCost[b.level - 1] * 0.75) : def.upgradeCost[b.level - 1]) : null;
     const n = Math.floor(b.count);
     const convs = def.noConvert ? [] : Object.keys(CONVERT_COST).filter(t => t !== b.type).map(t => ({ t, c: eng ? Math.ceil(CONVERT_COST[t] * 0.75) : CONVERT_COST[t] }));
@@ -518,11 +494,13 @@ export class Hud {
         <div><b>Swipe</b> across several of yours to send from all · <b>🐾 ALL</b> picks every building</div>
         <div>Tapping yours also shows <b>upgrade</b> and <b>convert</b> · <b>double-tap</b> upgrades</div>
         <div><b>Hold</b> a spell button to read what it does</div>
-        <div>Enemy cat counts are hidden (<b>?</b>): send the <b>🦉 Owl Scout</b> to see them for ${SCOUT.dur}s</div>` : `
+        <div>Enemy cat counts are hidden (<b>?</b>). Only some heroes have a skill that shows them</div>
+        <div>⭐ <b>Purr Power</b> makes your whole army tougher. Don't attack into a rival with more stars!</div>` : `
         <div><b>Drag</b> from your building to send cats · <b>swipe</b> across several to send from all</div>
         <div><b>Tap</b> a building for upgrade/convert · <b>double-tap</b> to upgrade</div>
-        <div><b>1-3</b> spells · <b>4</b> 🦉 Owl Scout · <b>Q W E R</b> send 25-100% · <b>T</b> emotes · <b>Esc</b> cancel</div>
-        <div>Enemy cat counts are hidden (<b>?</b>): the Owl Scout shows them for ${SCOUT.dur}s</div>`}
+        <div><b>1-${this.sk.length}</b> skills · <b>Q W E R</b> send 25-100% · <b>T</b> emotes · <b>Esc</b> cancel</div>
+        <div>⭐ <b>Purr Power</b> makes your whole army tougher. Don't attack into a rival with more stars!</div>
+        <div>Enemy cat counts are hidden (<b>?</b>). Only some heroes have a skill that shows them</div>`}
       </div>
       <button class="btn danger p-surrender">🏳️ Surrender</button>
     </div>`;
