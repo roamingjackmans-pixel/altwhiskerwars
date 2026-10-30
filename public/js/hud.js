@@ -1,5 +1,5 @@
 // Whisker Wars in-match HUD (HTML overlay on top of the canvas).
-import { HERO_BY_ID, BUILDINGS, CONVERT_COST, EMOTES, MAX_CATNIP, RULES, PURR_PER_STAR, PURR_ATK_PER_STAR, PURR_SPD_PER_STAR, teamColor, findSpell, SCOUT } from '../shared/data.js';
+import { HERO_BY_ID, HEROES, skillAt, BUILDINGS, CONVERT_COST, EMOTES, MAX_CATNIP, RULES, PURR, teamColor, findSpell, SCOUT } from '../shared/data.js';
 import { heroPortraitURL } from './art.js';
 import { audio } from './audio.js';
 import { profile, setSetting, save as saveProfile } from './profile.js';
@@ -8,10 +8,10 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 const fmtTime = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const TARGET_LABEL = { own: 'Your building', enemy: 'Enemy building', neutral: 'Stray building', notown: 'Enemy or stray building', area: 'Area', global: 'Instant' };
 const safeURL = (id, s) => { try { return heroPortraitURL(id, s); } catch { return ''; } };
-const PURR_TIP = 'Purr Power: capture buildings and win fights to earn stars. Each star gives all your cats +4% attack and +3% speed. Losing buildings and cats drains it.';
+const PURR_TIP = `Purr Power: capture buildings, win fights and beat back attacks to earn stars. Each star gives ALL your cats +${Math.round(PURR.atk * 100)}% attack, +${Math.round(PURR.def * 100)}% defense, +${Math.round(PURR.spd * 100)}% speed, +${Math.round(PURR.prod * 100)}% kittens and +${Math.round(PURR.energy * 100)}% catnip. Losing buildings, wasting cats and sitting still drain it, and it cools down over time.`;
 // five stars; the next one fills up as you earn purr
 const purrMeter = (side, label = true) => `<span class="purr" data-side="${side}" title="${PURR_TIP}">${label ? '<span class="pl">PURR</span>' : ''}<span class="pss">${'<i class="ps">★</i>'.repeat(5)}</span><span class="pb"></span></span>`;
-const purrBonus = n => n > 0 ? `+${Math.round(n * PURR_ATK_PER_STAR * 100)}% ⚔ +${Math.round(n * PURR_SPD_PER_STAR * 100)}% 💨` : '';
+const purrBonus = n => n > 0 ? `+${Math.round(n * PURR.atk * 100)}% ⚔ +${Math.round(n * PURR.def * 100)}% 🛡 +${Math.round(n * PURR.spd * 100)}% 💨` : '';
 
 export class Hud {
   constructor(root, match) {
@@ -44,7 +44,10 @@ export class Hud {
         <div class="emote-pop"></div>
       </div>`;
     };
-    const hero = HERO_BY_ID[P[me].hero];
+    const hero = HERO_BY_ID[P[me].hero] || HEROES[0];
+    this.hero = hero;
+    this.sk = hero.spells.map(s => skillAt(s, ((P[me] || {}).skills || {})[s.id] || 1));
+    const nSk = hero.spells.length;
     const phone = this.phone = !!this.m.phone;
     if (phone) this.root.classList.add('phone');
     const rules = RULES.filter(r => info.rules && info.rules[r.id]);
@@ -55,12 +58,12 @@ export class Hud {
             <span class="l">0</span><span class="r">0</span>
           </div>`;
     const oppCards = `<div class="opps${many ? ' many' : ''}">${this.opps.map(o => card(o, 'opp')).join('')}</div>`;
-    const spellBtns = hero.spells.map((s, k) => `<button class="spell" data-slot="${k}">
+    const spellBtns = this.sk.map((s, k) => `<button class="spell" data-slot="${k}">
               <span class="sicon">${s.icon}</span><span class="scost">${s.cost}</span>
               <div class="scd"></div><span class="scdtxt"></span>${phone ? '' : `<kbd>${k + 1}</kbd>`}</button>`).join('')
       // every hero can send the Owl Scout to peek at enemy cats
       + `<button class="spell scout" aria-label="${SCOUT.name}"><span class="sicon">${SCOUT.icon}</span><span class="scost">${SCOUT.cost}</span>
-              <div class="scd"></div><span class="scdtxt"></span>${phone ? '' : '<kbd>4</kbd>'}</button>`;
+              <div class="scd"></div><span class="scdtxt"></span>${phone ? '' : `<kbd>${nSk + 1}</kbd>`}</button>`;
     const catnip = `<div class="catnip" title="Catnip: spell energy. Gardens make it faster.">
             <div class="catnip-fill"></div><span class="catnip-txt">🌿 0</span>
           </div>`;
@@ -80,7 +83,7 @@ export class Hud {
           ${[0.25, 0.5, 0.75, 1].map((p, k) => `<button class="pct-btn" data-p="${p}">${p * 100}%<kbd>${'QWER'[k]}</kbd></button>`).join('')}
         </div>
         <div class="spellbar">
-          <div class="sb-top">${catnip}<div class="passive" title="${esc(hero.passive.name + ': ' + hero.passive.desc)}">✦ ${hero.passive.name}</div></div>
+          <div class="sb-top">${catnip}${hero.passive ? `<div class="passive" title="${esc(hero.passive.name + ': ' + hero.passive.desc)}">✦ ${hero.passive.name}</div>` : `<div class="passive">${esc(hero.name)}</div>`}</div>
           <div class="spells">${spellBtns}</div>
         </div>
         <div class="actions">
@@ -234,10 +237,10 @@ export class Hud {
     return { top: Math.round((top ? top.bottom : 40) + 2), bottom: 4, left: Math.round(leftEdge + 4), right: Math.round(W - rightEdge + 4) };
   }
   showTip(slot, btn) {
-    const s = slot === 'scout' ? SCOUT : HERO_BY_ID[this.info.players[this.me].hero].spells[slot];
+    const s = slot === 'scout' ? SCOUT : this.sk[slot];
     const tip = this.els.tip;
-    tip.innerHTML = `<div class="tt-h">${s.icon} ${s.name}</div><div class="tt-d">${s.desc}</div>
-      <div class="tt-m"><span>🌿 ${s.cost}</span><span>⏱ ${s.cd}s</span><span>🎯 ${TARGET_LABEL[s.target]}</span>${this.phone ? '' : `<span class="tt-k">hotkey <kbd>${slot === 'scout' ? 4 : slot + 1}</kbd></span>`}</div>`;
+    tip.innerHTML = `<div class="tt-h">${s.icon} ${s.name}${s.level ? ` <span class="tt-lv">Lv ${s.level}</span>` : ''}</div><div class="tt-d">${s.text || s.desc}</div>
+      <div class="tt-m"><span>🌿 ${s.cost}</span><span>⏱ ${s.cd}s</span><span>🎯 ${TARGET_LABEL[s.target]}</span>${this.phone ? '' : `<span class="tt-k">hotkey <kbd>${slot === 'scout' ? this.sk.length + 1 : slot + 1}</kbd></span>`}</div>`;
     tip.classList.remove('hidden');
     const r = btn.getBoundingClientRect();
     tip.style.left = Math.max(8, Math.min(window.innerWidth - 268, r.left + r.width / 2 - 130)) + 'px';
@@ -260,8 +263,8 @@ export class Hud {
     // desktop: picking a skill (mouse or hotkey) keeps its tooltip up until you cast or cancel
     if (!this.phone) { clearTimeout(this.tipTimer); if (slot >= 0) this.showTip(slot, this.els.spells[slot]); else this.els.tip.classList.add('hidden'); }
     if (slot >= 0) {
-      const s = HERO_BY_ID[this.info.players[this.me].hero].spells[slot];
-      if (this.phone) this.hintMsg(`${s.icon} <b>${s.name}</b>: ${s.target === 'area' ? 'tap a spot' : 'tap a glowing building'}<div class="th-d">${s.desc}</div>`, () => this.m.cancelTargeting(), 'spell');
+      const s = this.sk[slot];
+      if (this.phone) this.hintMsg(`${s.icon} <b>${s.name}</b>: ${s.target === 'area' ? 'tap a spot' : 'tap a glowing building'}<div class="th-d">${s.text}</div>`, () => this.m.cancelTargeting(), 'spell');
       else this.hintMsg(`${s.icon} <b>${s.name}</b> — ${s.target === 'area' ? 'tap a spot on the map' : 'tap a glowing building'} <span>(right-click / Esc to cancel)</span>`, null, 'spell');
     } else if (this.hintKind === 'spell') this.hintMsg(null);
   }
@@ -303,7 +306,7 @@ export class Hud {
       if (!pl) continue;
       const v = pl.purr || 0, n = pl.stars;
       if (v === P.v && n === P.n) continue;
-      P.stars.forEach((s, k) => { const f = Math.max(0, Math.min(1, (v - k * PURR_PER_STAR) / PURR_PER_STAR)); s.style.setProperty('--f', f.toFixed(2)); s.classList.toggle('on', k < n); });
+      P.stars.forEach((s, k) => { const f = Math.max(0, Math.min(1, (v - k * PURR.perStar) / PURR.perStar)); s.style.setProperty('--f', f.toFixed(2)); s.classList.toggle('on', k < n); });
       P.bonus.textContent = purrBonus(n);
       if (P.n >= 0 && n !== P.n) { P.e.classList.remove('up', 'down'); void P.e.offsetWidth; P.e.classList.add(n > P.n ? 'up' : 'down'); }
       P.e.classList.toggle('max', n >= 5);
@@ -313,11 +316,10 @@ export class Hud {
     this.els.bOpp.forEach(e => { e.textContent = '🏠 ' + (owned[+e.closest('.pcard').dataset.o] || 0); });
     this.els.catFill.style.width = (me.catnip / MAX_CATNIP * 100) + '%';
     this.els.catTxt.textContent = '🌿 ' + Math.floor(me.catnip);
-    const hero = HERO_BY_ID[this.info.players[this.me].hero];
-    hero.spells.forEach((s, k) => {
+    this.sk.forEach((s, k) => {
       const b = this.els.spells[k];
-      const cd = me.cds[k];
-      const max = s.cd * (hero.passive.id === 'overclock' ? 0.75 : 1);
+      const cd = me.cds[k] || 0;
+      const max = s.cd;
       b.classList.toggle('poor', me.catnip < s.cost);
       b.classList.toggle('ready', cd <= 0 && me.catnip >= s.cost);
       const cdEl = b.querySelector('.scd'), txt = b.querySelector('.scdtxt');

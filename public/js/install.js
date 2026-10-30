@@ -47,38 +47,38 @@ export function installSteps() {
   const firefox = /Firefox|FxiOS/i.test(ua);
   const macSafari = !ios && /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(ua);
   if (inApp) return {
-    title: 'Open Whisker Wars in your browser first',
+    title: 'Open Alt Whisker Wars in your browser first',
     steps: [`Tap the <b>⋯</b> or share menu and choose <b>Open in ${ios ? 'Safari' : 'Chrome'}</b> (or "Open in browser").`, 'Then tap <b>📲 Download app</b> again in Settings.'],
   };
   if (ios) return {
-    title: 'Add Whisker Wars to your Home Screen',
+    title: 'Add Alt Whisker Wars to your Home Screen',
     steps: [
       `Tap the <b>Share</b> button <span class="ia-ico">⬆️</span> ${/CriOS|EdgiOS|FxiOS/.test(ua) ? 'in the address bar' : 'at the bottom of Safari (top right on iPad)'}.`,
       'Scroll down and tap <b>Add to Home Screen</b> <span class="ia-ico">➕</span>.',
-      'Tap <b>Add</b>. Whisker Wars appears on your Home Screen and opens full screen, like an app.',
+      'Tap <b>Add</b>. Alt Whisker Wars appears on your Home Screen and opens full screen, like an app.',
     ],
   };
   if (android) return {
-    title: 'Install Whisker Wars on your phone',
+    title: 'Install Alt Whisker Wars on your phone',
     steps: [
       'Open your browser menu <span class="ia-ico">⋮</span> (top right).',
       `Tap <b>Install app</b> or <b>Add to Home screen</b>${firefox ? ' (in Firefox: <b>Install</b>)' : ''}.`,
-      'Confirm, and Whisker Wars appears on your home screen and app drawer.',
+      'Confirm, and Alt Whisker Wars appears on your home screen and app drawer.',
     ],
   };
   if (macSafari) return {
-    title: 'Add Whisker Wars to your Dock',
-    steps: ['In the menu bar, choose <b>File → Add to Dock</b>.', 'Click <b>Add</b>. Whisker Wars opens in its own window from the Dock.'],
+    title: 'Add Alt Whisker Wars to your Dock',
+    steps: ['In the menu bar, choose <b>File → Add to Dock</b>.', 'Click <b>Add</b>. Alt Whisker Wars opens in its own window from the Dock.'],
   };
   if (firefox) return {
-    title: 'Install Whisker Wars',
+    title: 'Install Alt Whisker Wars',
     steps: ['Firefox on computers can\'t install web apps yet.', 'Open this page in <b>Chrome</b> or <b>Edge</b> and tap <b>📲 Download app</b> there, or just bookmark it.'],
   };
   return {
-    title: 'Install Whisker Wars',
+    title: 'Install Alt Whisker Wars',
     steps: [
-      'Click the install icon <span class="ia-ico">⊕</span> at the right end of the address bar. (Or open the browser menu <span class="ia-ico">⋮</span> and choose <b>Install Whisker Wars</b>; in Edge: <b>Apps → Install this site as an app</b>.)',
-      'Click <b>Install</b>. Whisker Wars opens in its own window and gets a desktop / Start menu shortcut.',
+      'Click the install icon <span class="ia-ico">⊕</span> at the right end of the address bar. (Or open the browser menu <span class="ia-ico">⋮</span> and choose <b>Install Alt Whisker Wars</b>; in Edge: <b>Apps → Install this site as an app</b>.)',
+      'Click <b>Install</b>. Alt Whisker Wars opens in its own window and gets a desktop / Start menu shortcut.',
     ],
   };
 }

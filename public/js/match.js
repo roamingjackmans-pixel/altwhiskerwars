@@ -1,7 +1,7 @@
 // Whisker Wars match controller: runs/receives the simulation, handles input, feeds renderer + HUD.
 import { Game, radiusOf, BFX, SFX, maskSnap } from '../shared/game.js';
 import { AI } from '../shared/ai.js';
-import { TICK, SNAP_EVERY, BTYPES, BUILDINGS, HERO_BY_ID, PURR_ATK_PER_STAR, PURR_SPD_PER_STAR, BASE_SPEED, WORLD_W, WORLD_H, strayRegrowRate, SCOUT } from '../shared/data.js';
+import { TICK, SNAP_EVERY, BTYPES, BUILDINGS, HERO_BY_ID, HEROES, skillAt, PURR, BASE_SPEED, WORLD_W, WORLD_H, strayRegrowRate, SCOUT } from '../shared/data.js';
 import { Renderer, spellTargetOk } from './render.js';
 import { Hud } from './hud.js';
 import { audio } from './audio.js';
@@ -151,12 +151,17 @@ export class Match {
     if (this.attract) { this.renderer.setPadding({ top: 0, bottom: 0, left: 0, right: 0 }); return; }
     if (this.phone && this.hud) {
       this.hud.layoutPhone(this.rotate);
-      this.renderer.setPadding(this.hud.phonePadding());
+      const pad = this.hud.phonePadding();
+      // the tutorial's coach card sits under the top bar: keep the battlefield clear of it
+      if (this.tutorial) pad.top += this.tutorial.space();
+      this.renderer.setPadding(pad);
       return;
     }
     // desktop: the field may slide under the HUD bars wherever that hides no building
     this.renderer.avoid = this.hud ? this.hud.desktopPanels() : null;
-    this.renderer.setPadding(this.hud ? this.hud.desktopPadding() : { top: 52, bottom: 76, left: 6, right: 6 });
+    const pad = this.hud ? this.hud.desktopPadding() : { top: 52, bottom: 76, left: 6, right: 6 };
+    if (this.tutorial) pad.top += this.tutorial.space();
+    this.renderer.setPadding(pad);
   }
 
   // ---------- lifecycle ----------
@@ -186,7 +191,7 @@ export class Match {
     let last = performance.now(), acc = 0;
     this.metro = makeMetronome(25, () => {
       const now = performance.now();
-      if (this.paused) { last = now; return; }
+      if (this.paused || this.hold) { last = now; return; }
       acc += Math.min(1.5, (now - last) / 1000);
       last = now;
       let steps = 0;
@@ -270,6 +275,7 @@ export class Match {
       if (s.over) this.handleOver(s.over);
     }
     if (!this.attract) this.refreshUI(V);
+    if (this.tutorial) this.tutorial.update(V, dt);
     this.renderer.draw(V, this.attract ? null : this.ui, dt);
     if (this.hud) this.hud.update(V, dt);
     if (this.attract && this.game && this.game.over && !this.restarting) {
@@ -308,7 +314,7 @@ export class Match {
       const o = { id, owner, count, x: sx, y: sy, fx, to };
       squads.push(o); squadById.set(id, o);
     }
-    const players = b.p.map(arr => ({ catnip: arr[0], purr: arr[1], cds: [arr[2], arr[3], arr[4]], buffs: arr[5], alive: arr[6], army: arr[7], stars: arr[8], gcd: arr[9], scoutCd: arr[10] || 0, scouting: !!(arr[5] & 8) }));
+    const players = b.p.map(arr => ({ catnip: arr[0], purr: arr[1], cds: [arr[2], arr[3], arr[4], arr[11] || 0], buffs: arr[5], alive: arr[6], army: arr[7], stars: arr[8], gcd: arr[9], scoutCd: arr[10] || 0, scouting: !!(arr[5] & 8) }));
     return { t: a.t + (b.t - a.t) * u, buildings, byId, squads, squadById, players, timeLimit: this.info.timeLimit };
   }
 
@@ -316,6 +322,7 @@ export class Match {
     if (e.x != null && e.y != null && (this.flipX || this.flipY || this.rotate)) { const p = this.fwd(e.x, e.y); e = { ...e, x: p.x, y: p.y }; }
     this.renderer.event(e, V);
     if (this.hud) this.hud.onEvent(e, V);
+    if (this.tutorial) this.tutorial.onEvent(e, V);
     if (this.attract) return;
     const me = this.me;
     switch (e.k) {
@@ -381,19 +388,21 @@ export class Match {
   }
 
   // ---------- helpers for UI ----------
-  myHero() { return HERO_BY_ID[this.info.players[this.me].hero]; }
+  myHero() { return HERO_BY_ID[this.info.players[this.me].hero] || HEROES[0]; }
+  /** one of my hero's skills, with its numbers at my level */
+  mySkill(slot) { const sp = this.myHero().spells[slot]; return sp ? skillAt(sp, ((this.info.players[this.me] || {}).skills || {})[sp.id] || 1) : null; }
   estAttack(V) {
     let forge = 0;
     for (const b of V.buildings) if (b.owner === this.me && b.type === 'forge') forge += BUILDINGS.forge.atkBonus[b.level - 1];
     const P = V.players[this.me];
-    let a = 1 + Math.min(0.6, forge) + (P ? P.stars * PURR_ATK_PER_STAR : 0) + (P && (P.buffs & 2) ? 0.5 : 0);
+    let a = (1 + Math.min(0.6, forge)) * (1 + (P ? P.stars * PURR.atk : 0)) + (P && (P.buffs & 2) ? 0.5 : 0);
     if (this.myHero().passive.id === 'chivalry') a *= 1.1;
     return a;
   }
   estSpeed(V) {
     const P = V.players[this.me];
     const pas = this.myHero().passive.id;
-    let v = BASE_SPEED * (1 + (P ? P.stars * PURR_SPD_PER_STAR : 0));
+    let v = BASE_SPEED * (1 + (P ? P.stars * PURR.spd : 0));
     if (pas === 'lightpaws') v *= 1.2;
     if (pas === 'starcharts') v *= 1.08;
     if (this.info.rules && this.info.rules.zoomies) v *= 1.5;
@@ -482,8 +491,8 @@ export class Match {
   setPct(p) { this.pct = p; this.hud && this.hud.setPct(p); audio.play('click', { vol: 0.5 }); }
   selectSpell(slot) {
     if (this.over || !this.view) return;
-    const hero = this.myHero();
-    const sp = hero.spells[slot];
+    const sp = this.mySkill(slot);
+    if (!sp) return;
     const P = this.view.players[this.me];
     if (this.ui.targetingSlot === slot) { this.cancelTargeting(); return; }
     if (!P || P.cds[slot] > 0 || P.gcd > 0) { audio.play('error'); this.hud.flashSpell(slot, 'Recharging...'); return; }
@@ -609,8 +618,9 @@ export class Match {
     const key = ev => {
       if (this.over || ev.target.tagName === 'INPUT') return;
       const k = ev.key.toLowerCase();
-      if (k === '1' || k === '2' || k === '3') this.selectSpell(+k - 1);
-      else if (k === '4') this.scout();
+      const nSk = this.myHero().spells.length;
+      if (k >= '1' && k <= '9' && +k <= nSk) this.selectSpell(+k - 1);
+      else if (k === String(nSk + 1)) this.scout();
       else if (k === 'q') this.setPct(0.25); else if (k === 'w') this.setPct(0.5); else if (k === 'e') this.setPct(0.75); else if (k === 'r') this.setPct(1);
       else if (k === 'escape') this.cancelAll();
       else if (k === 'u' && this.ui.hover != null) { const b = this.view.byId.get(this.ui.hover); if (b && b.owner === this.me) this.upgrade(b.id); }

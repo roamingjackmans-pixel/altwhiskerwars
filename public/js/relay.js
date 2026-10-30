@@ -19,7 +19,7 @@ export const BROKERS = [
   { name: 'shiftr', url: 'wss://public.cloud.shiftr.io', user: 'public', pass: 'public' },   // port 443: gets through strict networks
   { name: 'hivemq', url: 'wss://broker.hivemq.com:8884/mqtt' },
 ];
-const ROOT = 'jjgames/whiskerwars-v1/';
+const ROOT = 'jjgames/altwhiskerwars-v1/';
 const OPENERS = new Set(['relay-hello']);   // the first message from a relayed player
 export const hostTopic = code => `${ROOT}${code}/h`;
 export const guestTopic = (code, id) => `${ROOT}${code}/g/${id}`;

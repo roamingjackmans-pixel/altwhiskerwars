@@ -2592,7 +2592,9 @@ function heroAccessory(ctx, id, P, hy, rx, ry) {
     }
   }
 }
-function drawHeroBust(ctx, h, P) {
+function drawHeroBust(ctx, h0, P) {
+  // Alt Whisker Wars heroes wear one of the original heroes' outfits (h.art)
+  const h = { ...h0, id: h0.art || h0.id };
   const hy = 3.4;
   const chonk = h.id === 'chonk';
   const rx = chonk ? 9.4 : 7.9, ry = chonk ? 7.8 : 7.2;

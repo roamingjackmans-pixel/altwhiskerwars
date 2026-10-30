@@ -11,6 +11,6 @@
 //   [{ urls: 'turn:turn.example.com:3478', username: 'user', credential: 'pass' }]
 window.WW_CONFIG = {
   server: 'auto',
-  peerPrefix: 'whiskerwars-v1-',
+  peerPrefix: 'altwhiskerwars-v1-',
   iceServers: null,
 };

@@ -1,9 +1,14 @@
-// Whisker Wars - computer opponent. Runs on the authority, issues normal commands.
+// Alt Whisker Wars - computer opponent. Runs on the authority, issues normal commands.
 import { BUILDINGS, AI_LEVELS, BASE_SPEED, STRAY_REGROW, strayRegrowRate, SCOUT } from './data.js';
 
 // buildings are compared by how far a cat has to WALK (around ponds, walls and mounds), not as the crow flies
 
-const AREA_ENEMY = { meteor: 9, frost: 9, bellyflop: 7, mutiny: 12, zerog: 9, tractor: 10, laser: 9, vacuum: 10 };
+// area skills aimed at a clump of enemy squads: how many enemy cats make it worth it
+const AREA_ENEMY = { firering: 12, uturn: 10, rewind: 12, sweettalk: 10, chickens: 12, frostring: 12, slowmo: 12, gohome: 12, tornado: 10 };
+// area skills that help my own attacking squads
+const AREA_MINE = { zoomboots: 12, fury: 14, cloak: 12, vortex: 14, fog: 14 };
+// "next cats you send from here" skills: cast on a rich building, then attack from it
+const NEXT_SEND = ['ranks', 'flying', 'shortcut'];
 
 export class AI {
   constructor(game, idx, level = 'normal') {
@@ -18,13 +23,13 @@ export class AI {
   // ---------- what it knows about rival buildings ----------
   // Nobody can see how many cats are inside another player's buildings, the computer included (see SCOUT in
   // data.js). It remembers the last count it saw, adds the kittens a building could have made since, takes away
-  // the squads it watches leave and adds the ones it watches arrive. Its Owl Scout shows everything again.
+  // the squads it watches leave and adds the ones it watches arrive. Its Owl Scout (and spy skills) show the truth.
   initIntel() {
     this.seen = new Map();     // building id -> { c: cats, t: when, o: owner then }
     for (const b of this.g.buildings) this.seen.set(b.id, { c: b.count, t: this.g.time, o: b.owner });
     this.watch = new Map();    // squad id -> { to, count, owner } for squads on the field
   }
-  visible(b) { return b.owner === this.i || b.owner < 0 || this.g.scouting(this.i); }
+  visible(b) { return this.g.canSee(this.i, b); }
   /** How many cats this AI thinks are in building b (the real number for its own buildings and strays). */
   est(b) {
     if (this.visible(b)) return b.count;
@@ -59,7 +64,7 @@ export class AI {
       if (w.owner === tb.owner) { st.c = this.est(tb) + w.count; st.t = t; }   // a rival reinforcing its own building
       else if (w.owner === this.i) {
         // my attack bounced off: it held, so what is left is what I guessed minus what I hit it with (at least a few)
-        st.c = Math.max(2, this.est(tb) - w.count * g.attack(this.i, null, true) / g.defense(tb)); st.t = t;
+        st.c = Math.max(2, this.est(tb) - w.count * g.attack(this.i, null) / g.defense(tb)); st.t = t;
       }
     }
   }
@@ -74,6 +79,7 @@ export class AI {
   }
 
   cmd(c) { this.g.command(this.i, c); }
+  blocked(b) { return this.g.fx(b, 'shackle'); }
 
   think() {
     const g = this.g, me = this.i;
@@ -87,7 +93,7 @@ export class AI {
     for (const s of g.squads) {
       const b = g.byId.get(s.to);
       if (!b) continue;
-      if (s.owner !== b.owner) this.incoming.set(b.id, (this.incoming.get(b.id) || 0) + s.count * g.attack(s.owner, s, true));
+      if (s.owner !== b.owner) this.incoming.set(b.id, (this.incoming.get(b.id) || 0) + s.count * g.attack(s.owner, s));
       else this.reinf.set(b.id, (this.reinf.get(b.id) || 0) + s.count);
     }
     const threatened = [];
@@ -100,23 +106,23 @@ export class AI {
 
     // now and then send the Owl Scout to see what the rivals really have
     const P = g.players[me];
-    if (P.scoutCd <= 0 && P.catnip >= SCOUT.cost + 25 && g.time - (this.lastScout ?? -99) > 40 && Math.random() < 0.3 + this.L.spellUse * 0.5) {
+    if (P.scoutCd <= 0 && P.silenced <= g.time && P.catnip >= SCOUT.cost + 20 && g.time - (this.lastScout ?? -99) > 45 && Math.random() < 0.25 + this.L.spellUse * 0.4) {
       this.cmd({ k: 'scout' }); this.lastScout = g.time;
     }
     if (Math.random() < this.L.spellUse) this.trySpells(mine);
     this.defend(mine);
     if (Math.random() < this.L.upgrade) this.tryUpgrade(mine);
+    // never attack into a rival with more Purr Power unless clearly stronger: their buildings defend much better
     if (Math.random() < 0.35 + this.L.aggression * 0.65) this.tryAttack(mine);
   }
 
   reserve(b) { return 2 + (1 - this.L.aggression) * 6 + (this.isFront(b) ? 3 : 0); }
   isFront(b) {
     const g = this.g;
-    let dm = Infinity, de = Infinity;
+    let de = Infinity;
     for (const o of g.buildings) {
       if (o === b) continue;
-      const d = g.pathLen(o, b);
-      if (o.owner === this.i) dm = Math.min(dm, d); else if (o.owner >= 0) de = Math.min(de, d);
+      if (o.owner >= 0 && o.owner !== this.i) de = Math.min(de, g.pathLen(o, b));
     }
     return de < 380;
   }
@@ -125,7 +131,7 @@ export class AI {
     const g = this.g;
     for (const b of this.threatened) {
       let need = (3 - b._margin) / g.defense(b) + 2;
-      const helpers = mine.filter(h => h !== b && !this.threatened.includes(h) && h.count > 5 && !g.fx(h, 'stink'))
+      const helpers = mine.filter(h => h !== b && !this.threatened.includes(h) && h.count > 5 && !this.blocked(h))
         .sort((a, c) => g.pathLen(a, b) - g.pathLen(c, b));
       for (const h of helpers) {
         if (need <= 0) break;
@@ -145,12 +151,13 @@ export class AI {
       const cost = g.upgradeCost(b);
       if (cost != null && b.count >= cost + 4 + (this.isFront(b) ? 8 : 0)) { this.cmd({ k: 'up', b: b.id }); return; }
     }
-    // occasionally build a forge / garden in the back line when rich
+    // occasionally build a forge / garden in the back line, or a tower up front, when rich
     if (mine.length >= 4 && Math.random() < 0.25 * this.L.upgrade) {
-      const hasForge = mine.some(b => b.type === 'forge');
-      const hasGarden = mine.some(b => b.type === 'garden');
+      const has = t => mine.some(b => b.type === t);
       const back = mine.filter(b => b.type === 'cottage' && b.level === 1 && !this.isFront(b) && b.count > 26);
-      if (back.length && (!hasForge || !hasGarden)) this.cmd({ k: 'conv', b: back[0].id, to: !hasForge ? 'forge' : 'garden' });
+      if (back.length && (!has('forge') || !has('garden'))) { this.cmd({ k: 'conv', b: back[0].id, to: !has('garden') ? 'garden' : 'forge' }); return; }
+      const front = mine.filter(b => b.type === 'cottage' && b.level === 1 && this.isFront(b) && b.count > 30);
+      if (front.length && mine.filter(b => b.type === 'tower').length < 2 && Math.random() < 0.4) this.cmd({ k: 'conv', b: front[0].id, to: 'tower' });
     }
   }
 
@@ -160,12 +167,13 @@ export class AI {
     const route = g.nav.fullPath(from.id, to.id);
     let shots = 0;
     for (const t of g.buildings) {
-      const def = BUILDINGS[t.type];
-      if (!def.range || (t.owner < 0 && t.type !== 'tower') || t.owner === this.i || this.est(t) < 1 || t === to) continue;
-      const range = def.range[t.level - 1];
+      const bt = g.btype(t), def = BUILDINGS[bt];
+      if (!def.range || (t.owner < 0 && bt !== 'tower') || t.owner === this.i || this.est(t) < 1 || t === to || g.fx(t, 'frozen')) continue;
+      const lv = Math.min(g.shootLevel(t), def.range.length);
+      const range = def.range[lv - 1];
       let inRange = 0;
       for (let k = 1; k < route.length; k++) inRange += chordIn(t, range, route[k - 1], route[k]);
-      shots += inRange / BASE_SPEED / def.fireEvery[t.level - 1];
+      shots += inRange / BASE_SPEED / def.fireEvery[lv - 1];
     }
     return shots;
   }
@@ -177,18 +185,20 @@ export class AI {
       const r = BUILDINGS.tower.range[tg.level - 1] + 120;
       for (const b of this.g.buildings) if (b.owner === this.i && Math.hypot(b.x - tg.x, b.y - tg.y) < r) base += 2;
     }
-    return base * (tg.owner >= 0 ? 1.3 : 1);
+    // taking a rival building swings Purr Power both ways
+    return base * (tg.owner >= 0 ? 1.4 : 1);
   }
 
   tryAttack(mine) {
     const g = this.g, me = this.i;
-    const atk = g.attack(me, null, true);
+    const atk = g.attack(me, null);
     const aggr = this.L.aggression;
     const options = [];
     for (const tg of g.buildings) {
       if (tg.owner === me) continue;
+      if (g.fx(tg, 'invuln')) continue;
       const srcs = mine
-        .filter(b => !this.threatened.includes(b) && !g.fx(b, 'stink'))
+        .filter(b => !this.threatened.includes(b) && !this.blocked(b))
         .map(b => ({ b, d: g.pathLen(b, tg), avail: b.count - this.reserve(b) }))
         .filter(x => x.avail >= 2)
         .sort((a, c) => (a.b.id === this.preferSource ? -1 : 0) - (c.b.id === this.preferSource ? -1 : 0) || a.d - c.d);
@@ -208,8 +218,7 @@ export class AI {
         const already = [...g.squads].filter(q => q.owner === me && q.to === tg.id).reduce((a, q) => a + q.count, 0);
         let need = ((this.est(tg) + prod + theirReinf) * def / atk) * (1.12 + (1 - aggr) * 0.35) + 2 + this.towerLoss(s.b, tg) - already;
         if (Math.random() < this.L.mistakes) need *= 0.7;
-        // cats already on the way (nearly) cover it: don't drip-feed tiny squads in after them. Trickles get eaten
-        // one by one while the defender tops up, and on long roads that can go on for the whole match.
+        // cats already on the way (nearly) cover it: don't drip-feed tiny squads in after them
         if (already > 0 && need < 5) break;
         if (gathered >= need) {
           options.push({ tg, used: used.slice(), need: Math.max(need, 1), maxD });
@@ -223,13 +232,6 @@ export class AI {
     options.sort((a, b) => b.score - a.score);
     const pick = Math.random() < this.L.mistakes ? options[Math.floor(Math.random() * options.length)] : options[0];
 
-    // Shadow Step synergy
-    const p = g.players[me];
-    const ss = p.hero.spells.findIndex(s => s.id === 'shadowstep');
-    if (ss >= 0 && p.cds[ss] <= 0 && p.catnip >= p.hero.spells[ss].cost && p.gcd <= 0 && pick.used[0].avail > 9) {
-      this.cmd({ k: 'spell', slot: ss, b: pick.used[0].b.id });
-    }
-
     let remaining = pick.need * 1.05;
     for (const s of pick.used) {
       if (remaining <= 0) break;
@@ -240,14 +242,15 @@ export class AI {
     this.preferSource = -1;
   }
 
-  // ---------- spells ----------
+  // ---------- skills ----------
   trySpells(mine) {
     const g = this.g, me = this.i, p = g.players[me];
-    if (p.gcd > 0) return false;
-    const order = [0, 1, 2].sort((a, b) => p.hero.spells[b].cost - p.hero.spells[a].cost);
-    if (this.saveFor == null || Math.random() < 0.1) this.saveFor = Math.random() < 0.55 ? order[0] : -1;
+    if (p.gcd > 0 || p.silenced > g.time) return false;
+    const n = p.hero.spells.length;
+    const order = Array.from({ length: n }, (_, k) => k).sort((a, b) => b - a);   // big skills first
+    if (this.saveFor == null || Math.random() < 0.1) this.saveFor = Math.random() < 0.5 ? order[0] : -1;
     for (const slot of order) {
-      const sp = p.hero.spells[slot];
+      const sp = g.spell(me, slot);
       if (p.cds[slot] > 0) continue;
       if (p.catnip < sp.cost) {
         if (slot === this.saveFor) return false; // saving up for the big one
@@ -257,16 +260,17 @@ export class AI {
       if (tgt) {
         this.cmd({ k: 'spell', slot, ...tgt });
         if (slot === this.saveFor) this.saveFor = null;
+        if (tgt.after) tgt.after();
         return true;
       }
     }
     return false;
   }
 
-  bestCluster(owners, r, pred = 0) {
+  bestCluster(owners, r, pred = 0, filter) {
     const g = this.g;
     let best = null, bestN = 0;
-    const list = g.squads.filter(s => owners(s.owner) && s.wait <= 0);
+    const list = g.squads.filter(s => owners(s.owner) && s.wait <= 0 && (!filter || filter(s)));
     for (const c of list) {
       let n = 0;
       for (const s of list) if (Math.hypot(s.x - c.x, s.y - c.y) <= r * 0.85) n += s.count;
@@ -282,79 +286,126 @@ export class AI {
     }
     return { x, y, n: bestN, s: best };
   }
+  /** cats of a given side near a point */
+  catsNear(x, y, r, owners) { return this.g.squads.filter(s => owners(s.owner) && Math.hypot(s.x - x, s.y - y) <= r).reduce((a, s) => a + s.count, 0); }
 
   spellTarget(sp, mine) {
-    const g = this.g, me = this.i;
+    const g = this.g, me = this.i, P = g.players[me];
     const enemyB = g.buildings.filter(b => b.owner >= 0 && b.owner !== me);
     const notMine = g.buildings.filter(b => b.owner !== me);
-    const isEnemy = o => o !== me;
+    const isEnemy = o => o !== me, isMe = o => o === me;
     const maxBy = (arr, f) => arr.reduce((a, b) => (a == null || f(b) > f(a) ? b : a), null);
+    const attacking = s => { const tg = g.byId.get(s.to); return tg && tg.owner !== me; };
+    const atMe = s => { const tg = g.byId.get(s.to); return tg && tg.owner === me; };
+    const r = sp.r || 120;
 
     if (AREA_ENEMY[sp.id] != null) {
-      const c = this.bestCluster(isEnemy, sp.radius, sp.delay || 0);
-      if (c && c.n >= AREA_ENEMY[sp.id]) return { x: c.x, y: c.y };
-      return null;
+      // the ones that hit everybody shouldn't land on my own cats
+      const c = this.bestCluster(isEnemy, r, sp.id === 'firering' ? 0.7 : 0, ['uturn', 'gohome', 'slowmo', 'rewind'].includes(sp.id) ? atMe : null);
+      if (!c || c.n < AREA_ENEMY[sp.id]) return null;
+      if (['frostring', 'slowmo', 'gohome'].includes(sp.id) && this.catsNear(c.x, c.y, r, isMe) > c.n * 0.3) return null;
+      return { x: c.x, y: c.y };
+    }
+    if (AREA_MINE[sp.id] != null) {
+      const c = this.bestCluster(isMe, r, 0, attacking);
+      if (!c || c.n < AREA_MINE[sp.id]) return null;
+      if (['zoomboots', 'fury', 'vortex'].includes(sp.id) && this.catsNear(c.x, c.y, r, isEnemy) > c.n * 0.4) return null;
+      return { x: c.x, y: c.y };
+    }
+    if (NEXT_SEND.includes(sp.id)) {
+      const b = maxBy(mine.filter(x => !this.threatened.includes(x) && !this.blocked(x) && x.count >= 24), x => x.count);
+      if (!b) return null;
+      return { b: b.id, after: () => { this.preferSource = b.id; } };
     }
     switch (sp.id) {
-      case 'smoke': case 'pepper': {
-        const c = this.bestCluster(o => o === me, sp.radius);
-        if (c && c.n >= 12) { const tg = g.byId.get(c.s.to); if (tg && tg.owner !== me) return { x: c.x, y: c.y }; }
-        return null;
-      }
-      case 'shieldwall': case 'fortify': case 'firewall': case 'turret': {
+      // ---- my buildings under attack
+      case 'stonepaws': case 'bounce': case 'zapfence': case 'untouchable': {
         const b = maxBy(this.threatened, x => this.incoming.get(x.id) || 0);
+        if (!b) return null;
+        if (sp.id === 'untouchable' && b.count < 8) return null;
+        return { b: b.id };
+      }
+      case 'pods': {
+        const b = this.threatened[0] || (Math.random() < 0.4 ? maxBy(mine.filter(x => this.isFront(x)), x => -x.count) : null);
         return b ? { b: b.id } : null;
       }
-      case 'feast': case 'moonbeam': {
-        const b = this.threatened[0] || (Math.random() < 0.5 ? maxBy(mine.filter(x => this.isFront(x)), x => -x.count) : null);
+      case 'magnet': {
+        // pull enemy squads into a strong building
+        const b = maxBy(mine.filter(x => x.count >= 15), x => this.catsNear(x.x, x.y, sp.r, isEnemy) * g.defense(x));
+        return b && this.catsNear(b.x, b.y, sp.r, isEnemy) >= 10 ? { b: b.id } : null;
+      }
+      case 'popup': {
+        const b = maxBy([...this.threatened, ...mine.filter(x => this.isFront(x))].filter(x => ['cottage', 'forge', 'garden'].includes(x.type) && x.count >= 5), x => (this.incoming.get(x.id) || 0) + this.catsNear(x.x, x.y, 250, isEnemy));
+        return b && this.catsNear(b.x, b.y, 260, isEnemy) >= 6 ? { b: b.id } : null;
+      }
+      case 'boomballs': case 'soulsnatch': {
+        const towers = mine.filter(x => BUILDINGS[g.btype(x)].range);
+        const b = maxBy(towers, x => this.catsNear(x.x, x.y, 260, isEnemy));
+        return b && this.catsNear(b.x, b.y, 260, isEnemy) >= 8 ? { b: b.id } : null;
+      }
+      case 'kittenboom': {
+        const b = maxBy(mine.filter(x => BUILDINGS[x.type].prod[x.level - 1] > 0 && x.count < g.cap(x) * 0.7), x => x.level);
         return b ? { b: b.id } : null;
       }
-      case 'jackpot': {
-        const b = maxBy(mine, x => x.count);
-        return b && b.count >= 22 ? { b: b.id } : null;
+      case 'secondlife': {
+        const lost = x => x.losses.filter(l => l.t > g.time - 5).reduce((a, l) => a + l.n, 0);
+        const b = maxBy(mine, lost);
+        return b && lost(b) >= 10 ? { b: b.id } : null;
       }
-      case 'teaparty': {
-        const b = maxBy(mine.filter(x => x.type === 'cottage' && x.count < g.cap(x) * 0.7), x => x.level);
+      case 'beam': {
+        // beam a rich back building's cats to a building in trouble
+        const need = this.threatened[0];
+        if (!need) return null;
+        const src = maxBy(mine.filter(x => x !== need && !this.threatened.includes(x) && !this.blocked(x) && x.count >= 15), x => x.count);
+        if (!src) return null;
+        return { b: src.id, after: () => this.cmd({ k: 'send', from: [src.id], to: need.id, pct: 1 }) };
+      }
+      // ---- enemy buildings
+      case 'bomb': { const b = maxBy(enemyB, x => this.est(x) + this.catsNear(x.x, x.y, sp.r, isEnemy)); return b && this.est(b) + this.catsNear(b.x, b.y, sp.r, isEnemy) >= 20 ? { b: b.id } : null; }
+      case 'shackles': { const b = maxBy(enemyB, x => this.est(x)); return b && this.est(b) >= 18 ? { b: b.id } : null; }
+      case 'deepfreeze': {
+        const b = maxBy(enemyB, x => (BUILDINGS[g.btype(x)].range ? this.catsNear(x.x, x.y, 260, isMe) : 0) + (x.type === 'forge' || x.type === 'garden' ? 12 : 0) + x.level * 2);
         return b ? { b: b.id } : null;
       }
-      case 'decree': {
-        const b = maxBy(mine.filter(x => x.level < BUILDINGS[x.type].maxLevel), x => (x.type === 'cottage' ? 10 : 0) + x.level);
+      case 'poison': case 'defectors': {
+        const b = maxBy(enemyB.filter(x => sp.id === 'poison' || BUILDINGS[x.type].prod[x.level - 1] > 0), x => x.level * 3 + this.est(x) / 5);
         return b ? { b: b.id } : null;
       }
-      case 'shadowstep': return null; // used together with attacks
-      case 'shuriken': { const b = maxBy(enemyB, x => this.est(x)); return b && this.est(b) >= 18 ? { b: b.id } : null; }
-      case 'cannon': { const b = maxBy(enemyB, x => this.est(x) + (BUILDINGS[x.type].range ? 10 : 0)); return b && this.est(b) >= 12 ? { b: b.id } : null; }
-      case 'orbital': { const b = maxBy(enemyB, x => this.est(x)); return b && this.est(b) >= 26 ? { b: b.id } : null; }
-      case 'curse': { const b = maxBy(enemyB.filter(x => BUILDINGS[x.type].prod[0] > 0), x => x.level + this.est(x) / 20); return b ? { b: b.id } : null; }
-      case 'sardines': { const b = maxBy(enemyB, x => this.est(x)); return b && this.est(b) >= 20 ? { b: b.id } : null; }
-      case 'hack': {
-        const towers = enemyB.filter(x => BUILDINGS[x.type].range && this.est(x) >= 1);
-        const b = maxBy(towers, x => g.squads.filter(s => s.owner !== me && Math.hypot(s.x - x.x, s.y - x.y) < 260).length + Math.random());
-        return b ? { b: b.id } : null;
+      case 'crumble': { const b = maxBy(enemyB.filter(x => x.level >= 2), x => x.level + (x.type === 'tower' ? 1 : 0)); return b ? { b: b.id } : null; }
+      case 'panic': { const b = maxBy(enemyB.filter(x => g.buildings.some(o => o !== x && o.owner === x.owner)), x => this.est(x)); return b && this.est(b) >= 15 ? { b: b.id } : null; }
+      case 'swap': {
+        const b = maxBy(enemyB, x => this.est(x) + x.level * 4);
+        const avg = mine.reduce((a, x) => a + x.count, 0) / mine.length;
+        return b && mine.length >= 2 && this.est(b) > avg + 12 ? { b: b.id } : null;
       }
-      case 'polymorph': {
-        const c = notMine.filter(x => ['tower', 'forge', 'garden'].includes(x.type) && !(x.owner >= 0 && g.fx(x, 'firewall')));
-        const b = maxBy(c, x => (x.owner >= 0 ? 10 : 0) - Math.min(...mine.map(m => g.pathLen(m, x))) / 100);
-        return b ? { b: b.id } : null;
+      case 'echo': case 'paperwalls': {
+        // the building my cats are about to hit
+        const near = g.squads.filter(s => s.owner === me && attacking(s)).map(s => ({ s, tg: g.byId.get(s.to) }))
+          .filter(o => o.tg && (sp.id === 'paperwalls' || o.tg.owner >= 0) && Math.hypot(o.s.x - o.tg.x, o.s.y - o.tg.y) < (sp.id === 'paperwalls' ? 110 : 260));
+        const best = maxBy(near, o => o.s.count);
+        return best && best.s.count >= 8 ? { b: best.tg.id } : null;
       }
-      case 'beckon': { const b = maxBy(notMine, x => this.est(x)); return b && this.est(b) >= 14 ? { b: b.id } : null; }
-      case 'bribe': {
-        const c = g.buildings.filter(x => x.owner < 0 && x.count <= sp.max && x.count >= 8);
-        const b = maxBy(c, x => this.value(x) * x.count - Math.min(...mine.map(m => g.pathLen(m, x))) / 50);
-        return b ? { b: b.id } : null;
+      case 'hypno': { const b = maxBy(notMine, x => this.est(x) * (x.owner >= 0 ? 1.3 : 1)); return b && this.est(b) >= 14 ? { b: b.id } : null; }
+      // ---- whole-battle skills
+      case 'luckystar': return g.stars(me) <= 3 && (this.threatened.length || g.squads.some(s => s.owner === me && attacking(s) && s.count >= 12)) ? {} : null;
+      case 'sneak': return enemyB.length >= 2 && enemyB.length <= 8 ? {} : null;
+      case 'evenpurr': {
+        const others = g.players.filter(q => q.alive && q.idx !== me);
+        const avg = others.reduce((a, q) => a + q.purr, P.purr) / (others.length + 1);
+        return avg > P.purr + 600 ? {} : null;
       }
-      case 'rally': case 'grog': {
-        const n = g.squads.filter(s => s.owner === me && (g.byId.get(s.to) || {}).owner !== me).reduce((a, s) => a + s.count, 0);
-        return n >= 16 ? {} : null;
+      case 'purrfreeze': return g.stars(me) >= 2 && g.players.every(q => !q.alive || q.idx === me || q.purr < P.purr) ? {} : null;
+      case 'hush': return g.players.some(q => q.alive && q.idx !== me && q.catnip >= 55) && P.cds.some(c => c > 5) ? {} : null;
+      case 'spyeye': {
+        const b = maxBy(enemyB, x => enemyB.filter(o => Math.hypot(o.x - x.x, o.y - x.y) < sp.r).length);
+        return b && !g.scouting(me) ? { x: b.x, y: b.y } : null;
       }
-      case 'naptime': {
-        const n = g.squads.filter(s => s.owner !== me).reduce((a, s) => a + s.count, 0);
-        return n >= 16 ? {} : null;
+      case 'mindread': { const c = this.bestCluster(isEnemy, sp.r); return c && c.n >= 15 ? { x: c.x, y: c.y } : null; }
+      case 'chain': {
+        const s = maxBy(g.squads.filter(q => q.owner !== me && q.wait <= 0), q => q.count + g.squads.filter(o => o.owner === q.owner && Math.hypot(o.x - q.x, o.y - q.y) < 220).length * 3);
+        // aim right on top of it so the chain can't start on my own cats
+        return s && s.count >= 10 && this.catsNear(s.x, s.y, 120, isMe) === 0 ? { x: s.x, y: s.y } : null;
       }
-      case 'goldenlitter': return mine.length >= 4 ? {} : null;
-      case 'eclipse': return enemyB.length >= 4 ? {} : null;
-      case 'luckycoin': return {};
-      case 'drain': return g.players.some(p => p.idx !== me && p.catnip >= 30) ? {} : null;
     }
     return null;
   }

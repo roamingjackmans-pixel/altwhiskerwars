@@ -185,6 +185,12 @@ export class OnlineSession {
   }
 }
 
+/** { skillId: level 1-5 } as sent by a player's lobby pick */
+function cleanSkills(s) {
+  const out = {};
+  if (s && typeof s === 'object') for (const [k, v] of Object.entries(s).slice(0, 12)) { const n = v | 0; if (n >= 1) out[String(k).slice(0, 16)] = Math.min(5, n); }
+  return out;
+}
 function sanitize(p) {
   if (!p) return null;
   return {
@@ -192,5 +198,6 @@ function sanitize(p) {
     hero: String(p.hero || 'whiskers').slice(0, 16), fur: String(p.fur || 'ginger').slice(0, 16), hat: String(p.hat || 'none').slice(0, 16),
     heroes: Array.isArray(p.heroes) ? p.heroes.slice(0, 20).map(String) : [],
     fc: /^\d{8}$/.test(String(p.fc || '')) ? String(p.fc) : '',
+    skills: cleanSkills(p.skills),
   };
 }

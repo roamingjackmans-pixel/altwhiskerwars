@@ -1,7 +1,7 @@
 // Whisker Wars menus & screens.
 import {
   HEROES, HERO_BY_ID, CLANS, FURS, HATS, MAPS, MAP_BY_ID, THEMES, AI_LEVELS, CAMPAIGN, ACHIEVEMENTS, BUILDINGS, EMOTES,
-  randomMap, teamColor, RULES, COINS,
+  randomMap, teamColor, RULES, COINS, SCOUT, SKILL_MAX, skillAt, skillGain, skillUpgradeCost,
 } from '../shared/data.js';
 import * as P from './profile.js';
 import { audio } from './audio.js';
@@ -14,6 +14,7 @@ import { maskSnap } from '../shared/game.js';
 import { initFriends, presence, friends, addFriend, removeFriend, isFriend, myFriendCode, fmtFriendCode, cleanFriendCode, onFriends, setBusyCheck, recentPlayers, noteRecent, beReachable } from './friends.js';
 import { isPhone, applyDeviceClass, enterFullscreen, keepAwake, deviceSummary, desktopSiteMode } from './device.js';
 import { BUILD, isDev, versionLabel, fetchLatest, isNewer, reloadTo } from './update.js';
+import { Tutorial, TUTORIAL_MAP } from './tutorial.js';
 import { isInstalled, promptInstall, installSteps, onInstallChange } from './install.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -110,7 +111,7 @@ function startAttract() {
   const r = a => a[Math.floor(Math.random() * a.length)];
   attract = new Match(canvas, hudRoot, {
     mode: 'attract', role: 'local', me: -1, fxLevel: 'medium',
-    cfg: { map, seed: (Math.random() * 1e9) | 0, timeLimit: 400, players: Array.from({ length: seats }, (_, i) => ({ name: 'ABCD'[i], hero: pick(), fur: r(furs), hat: r(hats), ai: 'normal' })) },
+    cfg: { map, seed: (Math.random() * 1e9) | 0, timeLimit: 400, players: Array.from({ length: seats }, (_, i) => { const hero = pick(); return { name: 'ABCD'[i], hero, fur: r(furs), hat: r(hats), ai: 'normal', skills: aiSkills(hero, 'normal') }; }) },
     onEnd: () => { stopAttract(); if (!match) startAttract(); },
   });
   attract.start(0);
@@ -163,7 +164,7 @@ function wireVersionBadge(root = screens) { const b = $('.ver-badge', root); if 
 function versionInfo() {
   const d = deviceSummary();
   const m = modal(`<div class="ver-info">
-    <h2>🐾 Whisker Wars</h2>
+    <h2>🐾 Alt Whisker Wars</h2>
     <div class="ver-rows">
       <div><span>Version</span><b>v${esc(BUILD.version)}</b></div>
       <div><span>Build</span><b>${isDev() ? 'local test copy' : esc(BUILD.commit)}${BUILD.built ? ` · ${esc(BUILD.built)}` : ''}</b></div>
@@ -190,7 +191,7 @@ function versionInfo() {
 function topbar(back = true, title = '') {
   const p = P.profile();
   return `<div class="topbar">
-    ${back ? `<button class="btn small back" data-go="home">← Back</button>` : `<div class="logo-small">🐾 Whisker Wars</div>`}
+    ${back ? `<button class="btn small back" data-go="home">← Back</button>` : `<div class="logo-small">🐾 Alt Whisker Wars</div>`}
     ${title ? `<h1 class="screen-title">${title}</h1>` : '<div></div>'}
     <div class="wallet">
       <span class="pill lvl" title="Player level">⭐ Lv <b class="tb-lv">${p.level}</b></span>
@@ -233,9 +234,15 @@ function heroCard(h, { selected, locked, small } = {}) {
     ${locked ? `<div class="hc-lock">🔒 <span class="fish">🐟</span>${h.cost}</div>` : ''}
   </div>`;
 }
-function heroDetail(h) {
+/**
+ * A hero's page: who they are and every skill at the level you have it. With `upgrades` on (heroes you own),
+ * each skill gets a fish button that raises it one level and says what gets better.
+ */
+function heroDetail(h, { upgrades = false } = {}) {
   const c = CLANS[h.clan];
   const tl = { own: 'your building', enemy: 'enemy building', neutral: 'stray building', notown: 'enemy/stray building', area: 'area', global: 'instant' };
+  const p = P.profile();
+  const pips = lv => `<span class="ab-pips" title="Level ${lv} of ${SKILL_MAX}">${Array.from({ length: SKILL_MAX }, (_, k) => `<i class="${k < lv ? 'on' : ''}"></i>`).join('')}</span>`;
   return `<div class="hero-detail" style="--clan:${c.color}">
     <div class="hd-top">
       <img class="hd-portrait" src="${portrait(h.id, 200)}" alt="">
@@ -245,9 +252,18 @@ function heroDetail(h) {
         <p class="hd-blurb">${h.blurb}</p>
       </div>
     </div>
-    <div class="ability passive"><div class="ab-icon">✦</div><div><b>${h.passive.name}</b> <span class="ab-tag">passive</span><div>${h.passive.desc}</div></div></div>
-    ${h.spells.map((s, k) => `<div class="ability"><div class="ab-icon">${s.icon}</div><div><b>${s.name}</b> <span class="ab-tag">${k + 1}</span>
-      <div>${s.desc}</div><div class="ab-meta">🌿 ${s.cost} catnip · ⏱ ${s.cd}s · 🎯 ${tl[s.target]}</div></div></div>`).join('')}
+    ${h.passive ? `<div class="ability passive"><div class="ab-icon">✦</div><div><b>${h.passive.name}</b> <span class="ab-tag">always on</span><div>${h.passive.desc}</div></div></div>` : ''}
+    ${h.spells.map((s0, k) => {
+      const lv = P.skillLevel(h.id, s0.id), s = skillAt(s0, lv);
+      const cost = skillUpgradeCost(lv), gain = cost != null ? skillGain(s0, lv) : [];
+      const up = !upgrades ? '' : cost == null ? '<div class="ab-max">★ Max level</div>'
+        : `<button class="btn small ab-up ${p.coins >= cost ? 'gold' : 'off'}" data-skill="${s0.id}">⬆ Level ${lv + 1} · <span class="fish">🐟</span> ${cost}</button>
+           ${gain.length ? `<div class="ab-gain">${gain.map(esc).join(' · ')}</div>` : ''}`;
+      return `<div class="ability"><div class="ab-icon">${s.icon}</div><div class="ab-body"><div class="ab-head"><b>${s.name}</b> <span class="ab-tag">${k + 1}</span>${pips(lv)}</div>
+        <div>${s.text}</div><div class="ab-meta">🌿 ${s.cost} catnip · ⏱ ${s.cd}s · 🎯 ${tl[s.target]}</div>${up}</div></div>`;
+    }).join('')}
+    <div class="ability scout"><div class="ab-icon">${SCOUT.icon}</div><div class="ab-body"><div class="ab-head"><b>${SCOUT.name}</b> <span class="ab-tag">every hero</span></div>
+      <div>${SCOUT.desc}</div><div class="ab-meta">🌿 ${SCOUT.cost} catnip · ⏱ ${SCOUT.cd}s</div></div></div>
   </div>`;
 }
 /** Inline hero picker (unlocked heroes selectable; locked shown). */
@@ -267,11 +283,22 @@ function showHero(id, after) {
   const h = HERO_BY_ID[id];
   const owned = P.heroUnlocked(id);
   const p = P.profile();
-  const m = modal(`${heroDetail(h)}
+  const m = modal(`<div class="hd-wrap">${heroDetail(h, { upgrades: owned })}</div>
     <div class="modal-actions">
       ${owned ? `<button class="btn primary act-equip">${p.equip.hero === id ? '✔ Your main hero' : 'Make main hero'}</button>`
       : `<button class="btn primary act-buy ${p.coins >= h.cost ? '' : 'off'}">Unlock for <span class="fish">🐟</span> ${h.cost}</button>`}
     </div>`, { cls: 'wide' });
+  // upgrade a skill with fish: redraw the page in place so you can keep going
+  const wireUps = () => $$('.ab-up', m.el).forEach(b => b.onclick = () => {
+    const r = P.upgradeSkill(id, b.dataset.skill);
+    if (!r.ok) { audio.play('error'); toast(r.msg, 'warn'); return; }
+    audio.play('unlock');
+    const s = h.spells.find(x => x.id === b.dataset.skill);
+    toast(`⬆ <b>${s.name}</b> is now level ${r.lv}!`, 'good');
+    $('.hd-wrap', m.el).innerHTML = heroDetail(h, { upgrades: true });
+    wireUps();
+  });
+  wireUps();
   const buy = $('.act-buy', m.el);
   if (buy) buy.onclick = () => {
     const r = P.buy('hero', id);
@@ -342,18 +369,19 @@ SCREENS.home = () => {
     <div class="home">
       <div class="logo">
         <div class="logo-ears"><span></span><span></span></div>
-        <div class="logo-text"><span class="w1">Whisker</span><span class="w2">Wars</span></div>
-        <div class="logo-sub">Real-time cat kingdom battles</div>
+        <div class="logo-text"><span class="w0">Alt</span><span class="w1">Whisker</span><span class="w2">Wars</span></div>
+        <div class="logo-sub">Hidden armies · hero skills · Purr Power</div>
       </div>
       <div class="home-main">
-        <button class="btn huge primary pulse" data-go="friend">⚔️ Battle a Friend<small>Real-time online PvP · share a room code</small></button>
+        ${p.tutorialDone ? '' : `<button class="btn huge gold tut-start pulse">🎓 Play the Tutorial<small>Learn to attack, switch buildings and use Purr Power · +${COINS.tutorial} 🐟</small></button>`}
+        <button class="btn huge primary ${p.tutorialDone ? 'pulse' : ''}" data-go="friend">⚔️ Battle a Friend<small>Real-time online PvP · share a room code</small></button>
         <div class="home-grid">
           <button class="btn tile" data-go="campaign"><span class="ti">🗺️</span>Campaign<small>${Object.keys(p.campaign).length}/${CAMPAIGN.length} cleared</small></button>
           <button class="btn tile" data-go="practice"><span class="ti">🤖</span>Practice<small>vs computer cats</small></button>
-          <button class="btn tile" data-go="heroes"><span class="ti">😺</span>Heroes<small>${p.heroes.length}/${HEROES.length} unlocked</small></button>
+          <button class="btn tile" data-go="heroes"><span class="ti">😺</span>Heroes<small>${p.heroes.length}/${HEROES.length} unlocked · upgrade skills</small></button>
           <button class="btn tile" data-go="shop"><span class="ti">🛍️</span>Cat Shop<small>furs & hats</small></button>
           <button class="btn tile" data-go="profile"><span class="ti">🏆</span>Profile<small>stats & trophies</small></button>
-          <button class="btn tile" data-go="howto"><span class="ti">📖</span>How to Play<small>learn in 1 minute</small></button>
+          <button class="btn tile" data-go="howto"><span class="ti">📖</span>How to Play<small>guide + tutorial</small></button>
         </div>
       </div>
       <div class="home-me card clickable" data-go="profile">
@@ -365,6 +393,7 @@ SCREENS.home = () => {
     ${versionBadge(true)}`;
   wireGo();
   wireVersionBadge();
+  const ts = $('.tut-start'); if (ts) ts.onclick = () => playTutorial();
   if (desktopSiteMode() && !warnedDesktopSite) {
     warnedDesktopSite = true;
     setTimeout(() => toast('📱 Your browser is showing the <b>desktop site</b>. Turn off "Desktop site" in its menu for the phone layout.', 'warn'), 900);
@@ -377,22 +406,53 @@ function welcome() {
   const p = P.profile();
   const m = modal(`<div class="welcome">
     <img class="welcome-cat" src="${catImg('ginger', 'crown', 160, 0)}" alt="">
-    <h2>Welcome to Whisker Wars!</h2>
+    <h2>Welcome to Alt Whisker Wars!</h2>
     <p>Lead an army of adorable cats, capture cottages, cast silly spells and conquer your friends.</p>
     <label>What should we call you, commander?</label>
     <div class="row"><input class="name-in" maxlength="16" value="${esc(p.name)}"><button class="btn small dice silent" title="Random name">🎲</button></div>
-    <button class="btn primary big go-tut">Let's go! 🐾</button>
-    <p class="muted small">Tip: open <b>How to Play</b> for a 1-minute guide.</p>
+    <button class="btn primary big go-tut">🎓 Start the tutorial</button>
+    <button class="btn small skip-tut">I know how to play, skip it</button>
+    <p class="muted small">The tutorial is a real battle that shows you how to attack, switch buildings and use Purr Power. +${COINS.tutorial} 🐟 when you finish.</p>
   </div>`, { close: false });
   const names = ['Mochi', 'Noodle', 'Biscuit', 'Pickles', 'Tofu', 'Meowzart', 'Purrlock', 'Socks', 'Butterbean', 'Clawdia', 'Catniss', 'Sushi', 'Waffles', 'Pudding'];
   $('.dice', m.el).onclick = () => { $('.name-in', m.el).value = names[Math.floor(Math.random() * names.length)] + Math.floor(Math.random() * 90 + 10); audio.play('mew'); };
-  $('.go-tut', m.el).onclick = () => {
+  const done = tut => {
     P.setName($('.name-in', m.el).value);
     P.profile().seenTutorial = true; P.save();
     m.close();
     audio.play('meow');
-    go('home'); // home shows the daily gift
+    if (tut) playTutorial(); else go('home'); // home shows the daily gift
   };
+  $('.go-tut', m.el).onclick = () => done(true);
+  $('.skip-tut', m.el).onclick = () => done(false);
+}
+
+// ---------------------------------------------------------------- interactive tutorial
+function playTutorial() {
+  const p = P.profile();
+  const hero = P.heroUnlocked(p.equip.hero) ? p.equip.hero : HEROES[0].id;
+  const map = structuredClone(TUTORIAL_MAP);
+  const m = beginMatch({
+    mode: 'tutorial', role: 'local', me: 0, aiLevel: 'easy', countdown: 0,
+    cfg: {
+      map, seed: 4242, timeLimit: 1800,
+      players: [
+        { name: p.name, hero, fur: p.equip.fur, hat: p.equip.hat, skills: P.skillLevels(hero) },
+        { name: 'Training Rival', hero: HEROES[1].id, fur: 'gray', hat: 'none', ai: 'easy' },
+      ],
+    },
+  });
+  // the red cat waits until the last step; the tutorial sends it in when it wants to show you something
+  const ais = m.ais;
+  m.ais = [];
+  m.wakeAI = () => { m.ais = ais; };
+  const t = new Tutorial(m, () => {
+    // skipped: end the practice battle and go back to the menu
+    if (match === m) { keepAwake.wanted = false; keepAwake(false); if (m._offs) m._offs.forEach(f => f()); m.stop(); match = null; }
+    go('home');
+  });
+  m.tutorial = t;
+  t.start();
 }
 function dailyGift() {
   const m = modal(`<div class="daily"><div class="gift">🎁</div><h2>Daily Gift!</h2><p>The Cat Council sends you a basket of fish.</p>
@@ -422,12 +482,12 @@ SCREENS.friend = (params = {}) => {
         <div class="fp-me">Your friend code <b class="fp-code">${fmtFriendCode(myFriendCode())}</b> <button class="btn small copy-fc">📋 Copy</button></div>
         <div class="fp-add"><input class="fc-in" maxlength="9" placeholder="Friend's code" inputmode="numeric" autocomplete="off"><button class="btn small primary add-fc">➕ Add</button></div>
         <div class="fp-list"></div>
-        <p class="muted small">Friends with Whisker Wars open show up as online. Tap <b>Invite</b> and they can jump straight into your room. You can also add the player you just battled from the lobby.</p>
+        <p class="muted small">Friends with Alt Whisker Wars open show up as online. Tap <b>Invite</b> and they can jump straight into your room. You can also add the player you just battled from the lobby.</p>
       </div>
     </div>
     <div class="net-mode muted small center"></div>`;
   wireGo();
-  detectServer().then(u => { const el = $('.net-mode'); if (el) el.innerHTML = u ? '🟢 Connected via the Whisker Wars server' : '🟢 Direct peer-to-peer mode (no server needed)'; });
+  detectServer().then(u => { const el = $('.net-mode'); if (el) el.innerHTML = u ? '🟢 Connected via the Alt Whisker Wars server' : '🟢 Direct peer-to-peer mode (no server needed)'; });
   const createBtn = $('.create'), joinBtn = $('.join'), input = $('.code-in');
   input.addEventListener('input', () => { input.value = cleanCode(input.value); });
   input.addEventListener('keydown', ev => { if (ev.key === 'Enter') joinBtn.click(); });
@@ -537,7 +597,7 @@ SCREENS.lobby = () => {
   const S = session;
   const p = P.profile();
   if (!P.heroUnlocked(p.equip.hero)) P.equip('hero', 'whiskers');
-  S.setPick({ hero: p.equip.hero, fur: p.equip.fur, hat: p.equip.hat, name: p.name, level: p.level });
+  S.setPick({ hero: p.equip.hero, fur: p.equip.fur, hat: p.equip.hat, name: p.name, level: p.level, skills: P.skillLevels(p.equip.hero) });
   const link = `${location.origin}${location.pathname}?room=${S.code}`;
   screens.innerHTML = `${topbar(false, 'Battle Lobby')}
     <div class="lobby">
@@ -579,7 +639,7 @@ SCREENS.lobby = () => {
   const copy = (txt, what) => { navigator.clipboard?.writeText(txt).then(() => toast(`📋 ${what} copied!`, 'good'), () => toast(txt)); };
   $('.copy-code').onclick = () => copy(S.code, 'Code');
   $('.copy-link').onclick = () => copy(link, 'Invite link');
-  const sh = $('.share'); if (sh) sh.onclick = () => navigator.share({ title: 'Whisker Wars', text: `Battle me in Whisker Wars! Room code: ${S.code}`, url: link }).catch(() => { });
+  const sh = $('.share'); if (sh) sh.onclick = () => navigator.share({ title: 'Alt Whisker Wars', text: `Battle me in Alt Whisker Wars! Room code: ${S.code}`, url: link }).catch(() => { });
   $('.leave').onclick = () => { endSession(); go('home'); };
 
   // ---- invite friends: online friends (and people you played recently) get a pop-up, one tap joins this room
@@ -637,7 +697,7 @@ SCREENS.lobby = () => {
 
   let myHero = p.equip.hero;
   const drawDetail = () => { $('.lobby-hero-detail').innerHTML = heroDetail(HERO_BY_ID[myHero]); };
-  heroPicker($('.lobby-heroes'), myHero, id => { myHero = id; P.equip('hero', id); S.setPick({ hero: id }); if (S.lobby.ready[S.me]) S.setReady(false); drawDetail(); });
+  heroPicker($('.lobby-heroes'), myHero, id => { myHero = id; P.equip('hero', id); S.setPick({ hero: id, skills: P.skillLevels(id) }); if (S.lobby.ready[S.me]) S.setReady(false); drawDetail(); });
   drawDetail();
   let lastMap = null, lastSize = 0;
   // only maps made for the lobby's number of players
@@ -727,7 +787,7 @@ function startOnline() {
   const L = S.lobby;
   const cfg = {
     map: resolveMap(L.map, L.seed), seed: L.seed, timeLimit: L.time, rules: L.rules || {},
-    players: L.players.slice(0, L.size || 2).map(pl => ({ name: pl.name, hero: pl.hero, fur: pl.fur, hat: pl.hat })),
+    players: L.players.slice(0, L.size || 2).map(pl => ({ name: pl.name, hero: pl.hero, fur: pl.fur, hat: pl.hat, skills: pl.skills })),
   };
   S.markMatch();
   const m = beginMatch({
@@ -866,6 +926,10 @@ function onMatchEnd(m, opts, res) {
     mode: opts.mode, win: res.win, draw: res.draw, why: res.why, ai: opts.aiLevel, stats: st || {}, time: res.time,
     opponent, hero: info.players[me].hero, map: info.map.name, level: opts.level,
   });
+  if (opts.mode === 'tutorial' && res.win) {
+    const bonus = P.finishTutorial();
+    if (bonus) { reward.lines.push(['🎓 Tutorial complete!', bonus]); reward.total += bonus; }
+  }
   go('results', { res, opts, reward });
 }
 
@@ -915,6 +979,7 @@ SCREENS.results = ({ res, opts, reward }) => {
     <div class="res-actions">
       ${opts.mode === 'online' ? `<button class="btn primary big rematch">🔁 Rematch</button><button class="btn big back leave">🚪 Leave room</button>` : ''}
       ${opts.mode === 'practice' ? `<button class="btn primary big again">🔁 Play again</button><button class="btn big" data-go="practice">⚙️ Change setup</button>` : ''}
+      ${opts.mode === 'tutorial' ? (res.win ? `<button class="btn primary big" data-go="practice">🤖 Practice vs computer</button><button class="btn big" data-go="heroes">😺 Upgrade skills</button>` : `<button class="btn primary big again">🔁 Try the tutorial again</button>`) : ''}
       ${isCampaign ? `${res.win && nextLevel ? `<button class="btn primary big next">▶ Next: ${nextLevel.name}</button>` : `<button class="btn primary big again">🔁 ${res.win ? 'Replay' : 'Try again'}</button>`}<button class="btn big" data-go="campaign">🗺️ Campaign</button>` : ''}
       <button class="btn big" data-go="home">🏠 Menu</button>
       ${nh && p.coins >= nh.cost ? `<button class="btn big gold" data-go="heroes">😺 Unlock heroes</button>` : ''}
@@ -932,7 +997,7 @@ SCREENS.results = ({ res, opts, reward }) => {
   setTimeout(() => audio.music('menu'), 2600);
 
   const again = $('.again');
-  if (again) again.onclick = () => opts.mode === 'campaign' ? playCampaign(opts.level) : playPractice();
+  if (again) again.onclick = () => opts.mode === 'campaign' ? playCampaign(opts.level) : opts.mode === 'tutorial' ? playTutorial() : playPractice();
   const next = $('.next');
   if (next) next.onclick = () => playCampaign(nextLevel);
   if (opts.mode === 'online') {
@@ -986,6 +1051,13 @@ SCREENS.practice = () => {
   drawRules();
   $('.start').onclick = () => playPractice();
 };
+/** computer cats get stronger skills on harder settings (and later campaign levels) */
+function aiSkills(heroId, ai, campaignLevel = 0) {
+  const h = HERO_BY_ID[heroId];
+  const base = { easy: 1, normal: 2, hard: 3, insane: 4 }[ai] || 1;
+  const lv = Math.min(SKILL_MAX, base + (campaignLevel >= 11 ? 1 : 0));
+  return h ? Object.fromEntries(h.spells.map(s => [s.id, lv])) : {};
+}
 function aiName() { return ['Sir Hiss-a-lot', 'Lady Scratchington', 'Baron Von Floof', 'Count Clawdius', 'Duke Nibbles', 'Madame Mischief', 'Lord Snugglepuss'][Math.floor(Math.random() * 7)]; }
 function playPractice() {
   const p = P.profile();
@@ -996,13 +1068,13 @@ function playPractice() {
   const names = [...new Set(Array.from({ length: 20 }, aiName))];
   const foes = Array.from({ length: n - 1 }, (_, k) => {
     const hero = k === 0 && sp.enemy !== 'random' ? sp.enemy : HEROES[Math.floor(Math.random() * HEROES.length)].id;
-    return { name: names[k] || aiName(), hero, fur: HERO_BY_ID[hero].fur, hat: hats[Math.floor(Math.random() * hats.length)], ai: sp.ai };
+    return { name: names[k] || aiName(), hero, fur: HERO_BY_ID[hero].fur, hat: hats[Math.floor(Math.random() * hats.length)], ai: sp.ai, skills: aiSkills(hero, sp.ai) };
   });
   beginMatch({
     mode: 'practice', role: 'local', me: 0, aiLevel: sp.ai,
     cfg: {
       map: resolveMap(sp.map, seed), seed, timeLimit: n > 2 ? 900 : 600, rules: { ...sp.rules },
-      players: [{ name: p.name, hero: p.equip.hero, fur: p.equip.fur, hat: p.equip.hat }, ...foes],
+      players: [{ name: p.name, hero: p.equip.hero, fur: p.equip.fur, hat: p.equip.hat, skills: P.skillLevels(p.equip.hero) }, ...foes],
     },
   });
 }
@@ -1053,8 +1125,8 @@ function playCampaign(l) {
     cfg: {
       map: resolveMap(l.map, seed), seed, timeLimit: 600,
       players: [
-        { name: p.name, hero: p.equip.hero, fur: p.equip.fur, hat: p.equip.hat },
-        { name: HERO_BY_ID[l.enemy].name, hero: l.enemy, fur: HERO_BY_ID[l.enemy].fur, hat: l.id >= 11 ? 'crown' : 'none', ai: l.ai },
+        { name: p.name, hero: p.equip.hero, fur: p.equip.fur, hat: p.equip.hat, skills: P.skillLevels(p.equip.hero) },
+        { name: HERO_BY_ID[l.enemy].name, hero: l.enemy, fur: HERO_BY_ID[l.enemy].fur, hat: l.id >= 11 ? 'crown' : 'none', ai: l.ai, skills: aiSkills(l.enemy, l.ai, l.id) },
       ],
     },
   });
@@ -1176,7 +1248,7 @@ SCREENS.settings = () => {
   screens.innerHTML = `${topbar(true, 'Settings')}
     <div class="settings card panel">
       <div class="app-row">
-        <div class="app-txt"><b>📲 Whisker Wars app</b><span class="muted small"></span></div>
+        <div class="app-txt"><b>📲 Alt Whisker Wars app</b><span class="muted small"></span></div>
         <button class="btn primary dl-app">📲 Download app</button>
       </div>
       <hr>
@@ -1223,7 +1295,7 @@ SCREENS.settings = () => {
   };
   dl.onclick = async () => {
     const r = await promptInstall();
-    if (r === 'accepted') toast('📲 Installing Whisker Wars...', 'good');
+    if (r === 'accepted') toast('📲 Installing Alt Whisker Wars...', 'good');
     else if (r === 'manual') showInstallSteps();
     drawApp();
   };

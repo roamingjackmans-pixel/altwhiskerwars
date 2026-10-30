@@ -1,7 +1,7 @@
 // Player profile, currency, unlocks and achievements (saved in this browser).
-import { HEROES, FURS, HATS, ACHIEVEMENTS, COINS, AI_LEVELS, CAMPAIGN, HERO_BY_ID } from '../shared/data.js';
+import { HEROES, FURS, HATS, ACHIEVEMENTS, COINS, AI_LEVELS, CAMPAIGN, HERO_BY_ID, SKILL_MAX, skillUpgradeCost } from '../shared/data.js';
 
-const KEY = 'whiskerwars.profile.v1';
+const KEY = 'altwhiskerwars.profile.v1';
 const NAMES = ['Whiskerpop', 'Sir Fluff', 'Captain Paws', 'Mochi', 'Noodle', 'Biscuit', 'Pickles', 'Tofu', 'Meowzart', 'Purrlock', 'Socks', 'Butterbean', 'Mittensworth', 'Clawdia', 'Catniss'];
 
 function today() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
@@ -24,6 +24,8 @@ function fresh() {
     lastDaily: '', lastFirstWin: '',
     settings: { sfx: 0.8, music: 0.45, muted: false, fx: 'high', showTips: true, layout: 'auto', vibrate: true, fullscreen: true },
     seenTutorial: false,
+    tutorialDone: false,
+    skills: {},
   };
 }
 
@@ -181,3 +183,39 @@ export function publicProfile() {
 }
 export function setSetting(k, v) { P.settings[k] = v; changed(); }
 export function heroUnlocked(id) { return P.heroes.includes(id) || (HERO_BY_ID[id] && HERO_BY_ID[id].cost === 0); }
+
+// ---------------- skill levels (upgraded with fish) ----------------
+/** level (1..SKILL_MAX) of one of a hero's skills */
+export function skillLevel(heroId, skillId) {
+  const lv = ((P.skills || {})[heroId] || {})[skillId] || 1;
+  return Math.max(1, Math.min(SKILL_MAX, lv | 0));
+}
+/** { skillId: level } for every skill of a hero (what goes into a battle) */
+export function skillLevels(heroId) {
+  const h = HERO_BY_ID[heroId];
+  if (!h) return {};
+  return Object.fromEntries(h.spells.map(s => [s.id, skillLevel(heroId, s.id)]));
+}
+/** Spend fish to raise a skill one level. Returns { ok, msg, lv } */
+export function upgradeSkill(heroId, skillId) {
+  const h = HERO_BY_ID[heroId];
+  if (!h || !h.spells.some(s => s.id === skillId)) return { ok: false, msg: 'Unknown skill' };
+  if (!heroUnlocked(heroId)) return { ok: false, msg: 'Unlock this hero first' };
+  const lv = skillLevel(heroId, skillId);
+  if (lv >= SKILL_MAX) return { ok: false, msg: 'Already max level' };
+  const cost = skillUpgradeCost(lv);
+  if (P.coins < cost) return { ok: false, msg: `Need ${cost - P.coins} more fish` };
+  P.coins -= cost;
+  P.skills = P.skills || {};
+  P.skills[heroId] = { ...(P.skills[heroId] || {}), [skillId]: lv + 1 };
+  changed();
+  return { ok: true, lv: lv + 1 };
+}
+/** the tutorial pays out once */
+export function finishTutorial() {
+  if (P.tutorialDone) return 0;
+  P.tutorialDone = true;
+  P.coins += COINS.tutorial;
+  changed();
+  return COINS.tutorial;
+}

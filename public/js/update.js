@@ -23,13 +23,13 @@ export const sinceLastCheck = () => Date.now() - lastCheck;
 export const isNewer = l => !!(l && l.commit && l.commit !== 'dev' && !isDev() && l.commit !== BUILD.commit);
 
 /** only auto-reload once per build per tab, so a slow cache can never cause a reload loop */
-export function alreadyTried(l) { try { return sessionStorage.getItem('ww-update-to') === l.commit; } catch { return true; } }
+export function alreadyTried(l) { try { return sessionStorage.getItem('aww-update-to') === l.commit; } catch { return true; } }
 
 /** Reload onto the new build. The ?v= makes the browser fetch a fresh page instead of its cached copy. */
 export function reloadTo(l, search = location.search) {
   const q = new URLSearchParams(search);
   q.set('v', l.commit);
-  try { sessionStorage.setItem('ww-update-to', l.commit); } catch { /* private mode */ }
+  try { sessionStorage.setItem('aww-update-to', l.commit); } catch { /* private mode */ }
   location.replace(location.pathname + '?' + q.toString());
 }
 

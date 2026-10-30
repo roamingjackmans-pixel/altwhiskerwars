@@ -1,0 +1,265 @@
+// Alt Whisker Wars - interactive tutorial.
+// A real battle on a small practice field. A coach card walks you through it one step at a time: each step points
+// at what to do (glowing rings, a paw that shows the drag, glowing buttons) and waits until you have done it.
+// The red cat stays still until the last step, except when the tutorial sends it in to show you something.
+import { BUILDINGS, CONVERT_COST, SCOUT, PURR, purrLevel, HERO_BY_ID, skillAt } from '../shared/data.js';
+import { audio } from './audio.js';
+
+// The practice field: you on the left, the red cat on the right, strays in between.
+export const TUTORIAL_MAP = {
+  id: 'tutorial', name: 'Training Meadow', theme: 'meadow', size: 'Tutorial', obstacles: [],
+  buildings: [
+    { id: 0, x: 240, y: 450, type: 'cottage', level: 2, owner: 0, count: 22 },
+    { id: 1, x: 480, y: 250, type: 'cottage', level: 1, owner: -1, count: 5 },
+    { id: 2, x: 480, y: 660, type: 'cottage', level: 1, owner: -1, count: 12 },
+    { id: 3, x: 770, y: 450, type: 'cottage', level: 1, owner: -1, count: 8 },
+    { id: 4, x: 1370, y: 450, type: 'cottage', level: 2, owner: 1, count: 16 },
+    { id: 5, x: 1110, y: 250, type: 'cottage', level: 1, owner: 1, count: 6 },
+    { id: 6, x: 1110, y: 660, type: 'cottage', level: 1, owner: 1, count: 6 },
+  ],
+};
+const HOME = 0, EASY = 1, BIG = 2, FRONT = 3, ENEMY_HOME = 4, ENEMY_A = 5, ENEMY_B = 6;
+
+export class Tutorial {
+  /** match: a local Match on TUTORIAL_MAP with you in seat 0 and the red cat in seat 1 (its AI switched off). */
+  constructor(match, onQuit) {
+    this.m = match;
+    this.onQuit = onQuit;
+    this.k = -1;
+    this.seen = [];      // events since the step started
+    this.t = 0;          // seconds since the step started
+    this.card = null;
+    this.cardH = 0;
+    this.steps = this.makeSteps();
+  }
+
+  /** extra room the battlefield leaves at the top for the coach card */
+  space() { return this.cardH ? this.cardH + 10 : 0; }
+
+  start() {
+    const root = this.m.hud.root;
+    this.card = document.createElement('div');
+    this.card.className = 'tut-coach';
+    root.appendChild(this.card);
+    this.go(0);
+  }
+
+  get step() { return this.steps[this.k]; }
+  owner(id) { const b = this.m.game.byId.get(id); return b ? b.owner : -2; }
+  mine(id) { return this.owner(id) === 0; }
+  count(id) { const b = this.m.game.byId.get(id); return b ? b.count : 0; }
+  hero() { return HERO_BY_ID[this.m.info.players[0].hero]; }
+  phone() { return !!this.m.phone; }
+  /** your cottage, or whatever you hold if you lost it */
+  home() { if (this.mine(HOME)) return HOME; const b = this.m.game.buildings.find(x => x.owner === 0); return b ? b.id : HOME; }
+
+  go(k) {
+    this.k = k;
+    this.seen = [];
+    this.t = 0;
+    const s = this.step;
+    if (!s) return this.finish();
+    if (s.enter) s.enter();
+    this.m.hold = !!s.hold;
+    this.drawCard();
+    audio.play(k === 0 ? 'meow' : 'star', { vol: 0.5 });
+  }
+  next() { this.go(this.k + 1); }
+
+  drawCard() {
+    const s = this.step, n = this.steps.length;
+    const text = typeof s.text === 'function' ? s.text() : s.text;
+    this.card.innerHTML = `
+      <div class="tc-top"><span class="tc-step">Tutorial · ${this.k + 1}/${n}</span><span class="tc-title">${s.title}</span><button class="tc-skip">Skip ✕</button></div>
+      <div class="tc-body">${text}</div>
+      ${s.next ? `<div class="tc-row"><button class="btn primary small tc-next">${s.nextLabel || 'Next →'}</button></div>` : `<div class="tc-wait">${s.waitLabel || '👆 Your turn!'}</div>`}`;
+    const nb = this.card.querySelector('.tc-next');
+    if (nb) nb.onclick = () => this.next();
+    const sk = this.card.querySelector('.tc-skip');
+    sk.onclick = () => {
+      if (sk.dataset.sure) { this.quit(); return; }
+      sk.dataset.sure = 1; sk.textContent = 'Tap again to skip';
+      setTimeout(() => { if (sk.isConnected) { delete sk.dataset.sure; sk.textContent = 'Skip ✕'; } }, 2500);
+    };
+    // glowing HUD buttons
+    document.querySelectorAll('.tut-glow').forEach(e => e.classList.remove('tut-glow'));
+    for (const sel of s.glow || []) document.querySelectorAll(`#hud ${sel}`).forEach(e => e.classList.add('tut-glow'));
+    // make room for the card, then lay the battlefield out again
+    requestAnimationFrame(() => {
+      if (!this.card || !this.card.isConnected) return;
+      this.positionCard();
+      const h = Math.round(this.card.getBoundingClientRect().height);
+      if (Math.abs(h - this.cardH) > 4) { this.cardH = h; this.m.applyPadding(); this.positionCard(); }
+    });
+  }
+  positionCard() {
+    const R = this.m.renderer;
+    // the HUD's own top bar ends where the battlefield padding (minus our card) starts
+    const top = Math.max(4, R.pad.top - this.space() + 4);
+    this.card.style.top = top + 'px';
+  }
+
+  update(V, dt) {
+    if (!this.step) return;
+    if (!this.m.hold) this.t += dt;
+    const s = this.step;
+    this.m.ui.tut = {
+      hl: typeof s.hl === 'function' ? s.hl() : s.hl || [],
+      from: typeof s.from === 'function' ? s.from() : s.from,
+      to: typeof s.to === 'function' ? s.to() : s.to,
+    };
+    if (s.live) { const el = this.card.querySelector('.tc-live'); if (el) el.innerHTML = s.live(V); }
+    if (s.done && s.done(V)) this.next();
+  }
+  onEvent(e) { if (this.step) this.seen.push(e); }
+  saw(pred) { return this.seen.some(pred); }
+
+  finish() {
+    this.m.hold = false;
+    this.m.ui.tut = null;
+    if (this.card) this.card.remove();
+    document.querySelectorAll('.tut-glow').forEach(e => e.classList.remove('tut-glow'));
+  }
+  quit() { this.finish(); this.onQuit && this.onQuit(); }
+
+  // ------------------------------------------------------------------ the lesson
+  makeSteps() {
+    const g = () => this.m.game, ph = this.phone();
+    const drag = ph ? '<b>Drag</b> from your building to the target (or <b>tap</b> yours, then <b>tap</b> the target)' : '<b>Drag</b> from your building to the target';
+    const conv = t => CONVERT_COST[t];
+    const P = () => g().players[0];
+    return [
+      {
+        title: 'Your kingdom', hold: true, next: true, hl: [HOME],
+        text: `Welcome, commander! The <b style="color:#3d9bff">blue</b> cottage is <b>yours</b>. The number on it is how many cats live inside, and a cottage makes new kittens all the time.
+          The <b style="color:#ff5468">red</b> buildings belong to your rival. The grey ones are <b>strays</b>: nobody owns them yet.`,
+      },
+      {
+        title: 'Send your cats', hl: () => [this.home(), EASY], from: () => this.home(), to: EASY,
+        text: `${drag} to the stray cottage with <b>5 cats</b>. Half your cats march out. When they arrive they fight the cats inside, and if more of yours arrive than there are defenders, the building is yours.`,
+        waitLabel: '👆 Capture the glowing stray cottage',
+        done: () => this.mine(EASY),
+      },
+      {
+        title: 'How many to send', glow: ['.pct-btn[data-p="1"]'], hl: () => [this.home(), EASY, BIG], to: BIG, from: () => this.home(),
+        text: `Captured! That stray has <b>12 cats</b>: half of yours won't be enough. Use the <b>SEND</b> buttons ${ph ? 'above your thumbs' : 'at the bottom left (or Q W E R)'} to send <b>25, 50, 75 or 100%</b>.
+          Pick <b>100%</b>, then ${ph ? '<b>swipe</b> across both of your buildings' : '<b>swipe</b> across both of your buildings before letting go'} and end on the 12-cat stray to send from both at once.
+          <div class="tc-tip">While you drag, the pill over the target shows <b>your cats ⚔ cats needed</b>. Green ✔ means it's enough.</div>`,
+        waitLabel: '👆 Capture the 12-cat stray',
+        done: () => this.mine(BIG),
+      },
+      {
+        title: 'Upgrade', hl: () => [this.home()],
+        text: () => `Upgraded cottages make kittens faster and hold more cats. ${ph ? '<b>Tap</b> your big cottage, then tap <b>⬆</b>' : '<b>Click</b> your big cottage, then <b>⬆ Upgrade</b>'} (or ${ph ? 'double-tap' : 'double-click'} it).
+          Upgrading costs <b>${BUILDINGS.cottage.upgradeCost[1]} cats</b> from inside the building, so wait until it has enough.
+          <div class="tc-live"></div>`,
+        live: V => { const b = V.byId.get(this.home()); return b ? `<div class="tc-tip">Cats inside: <b>${Math.floor(b.count)}</b> / ${BUILDINGS.cottage.upgradeCost[b.level - 1] ?? '-'}</div>` : ''; },
+        waitLabel: '👆 Upgrade a cottage',
+        done: () => this.saw(e => e.k === 'up' && e.o === 0),
+      },
+      {
+        title: 'The front line', hl: [FRONT], from: () => this.home(), to: FRONT,
+        text: `The cottage in the middle sits on the <b>front line</b>, closest to your rival. Take it.`,
+        waitLabel: '👆 Capture the middle cottage',
+        done: () => this.mine(FRONT),
+      },
+      {
+        title: 'Reinforce', hl: [FRONT], from: () => (this.mine(BIG) ? BIG : this.home()), to: FRONT,
+        text: `Cats sent to <b>your own</b> building move in and make it stronger. Send cats to the front cottage until it has <b>${conv('tower')} cats</b>.
+          <div class="tc-live"></div>`,
+        live: V => { const b = V.byId.get(FRONT); return b && b.owner === 0 ? `<div class="tc-tip">Front cottage: <b>${Math.floor(b.count)}</b> / ${conv('tower')} cats</div>` : ''; },
+        waitLabel: `👆 Get the front cottage to ${conv('tower')} cats`,
+        done: () => this.mine(FRONT) && this.count(FRONT) >= conv('tower'),
+      },
+      {
+        title: 'Switch buildings', hl: [FRONT],
+        text: `Any building can <b>switch</b> to a different job (it costs cats and starts again at level 1). Picking the right job for each spot wins battles:
+          <div class="tc-jobs">
+            <div>🏠 <b>Cottage</b>: makes kittens. Keep them where they are safe.</div>
+            <div>🗼 <b>Scratch Tower</b>: shoots enemy cats walking past and is 50% harder to capture. Best on the <b>front line</b>.</div>
+            <div>🧶 <b>Yarn Forge</b>: makes <b>all</b> your cats hit harder, everywhere.</div>
+            <div>🌿 <b>Catnip Garden</b>: catnip (skill power) refills much faster. Catnip is scarce, so gardens are valuable.</div>
+          </div>
+          ${ph ? '<b>Tap</b>' : '<b>Click</b>'} the front cottage and switch it to a <b>🗼 Scratch Tower</b> (${conv('tower')} cats).`,
+        waitLabel: '👆 Switch the front cottage to a tower',
+        done: () => this.saw(e => e.k === 'conv' && e.o === 0 && e.to === 'tower'),
+      },
+      {
+        title: 'Here they come!', hl: [FRONT],
+        enter: () => {
+          // the red cat sends a raid down the middle, right past your new tower
+          const from = [ENEMY_A, ENEMY_B].filter(id => this.owner(id) === 1);
+          if (from.length) g().command(1, { k: 'send', from, to: FRONT, pct: 0.55 });
+        },
+        text: `Your rival is attacking the front! Watch the tower <b>knock cats out</b> as they walk into range. A tower on the front line guards everything behind it.`,
+        waitLabel: '👀 Watch the tower...',
+        done: () => this.t > 3 && !g().squads.some(s => s.owner === 1),
+      },
+      {
+        title: 'Switch for power', hl: () => g().buildings.filter(b => b.owner === 0 && b.id !== FRONT).map(b => b.id),
+        text: () => `${this.mine(FRONT) ? 'Your tower held!' : 'They took it. Towers are much stronger with more cats inside.'} Buildings at the back are safe, so give them a job that helps your whole army.
+          Switch one of your back buildings into a <b>🧶 Yarn Forge</b> (all your cats +${Math.round(BUILDINGS.forge.atkBonus[0] * 100)}% attack) or a <b>🌿 Catnip Garden</b> (catnip refills +${Math.round(BUILDINGS.garden.catnipBonus[0] * 100)}% faster). It costs ${conv('forge')} cats.
+          <div class="tc-tip">Losing a forge or garden loses its bonus, and a cottage that switched stops making kittens. Switch when it helps more than it costs.</div>`,
+        waitLabel: '👆 Switch a back building into a forge or garden',
+        done: () => this.saw(e => e.k === 'conv' && e.o === 0 && (e.to === 'forge' || e.to === 'garden')),
+      },
+      {
+        title: 'Hidden enemies', glow: ['.spell.scout'], hl: [ENEMY_A, ENEMY_B, ENEMY_HOME].filter(Boolean),
+        text: `Notice the <b>?</b> on red buildings: <b>nobody can see how many cats are inside a rival's buildings</b>. Not you, and not the computer either. Cats walking on the road always show their numbers.
+          Use the <b>${SCOUT.icon} ${SCOUT.name}</b> skill (${ph ? 'the owl button' : 'hotkey <kbd>4</kbd>'}, ${SCOUT.cost} 🌿 catnip) to see every enemy count for ${SCOUT.dur} seconds.`,
+        waitLabel: `👆 Send the ${SCOUT.name}`,
+        done: () => this.saw(e => e.k === 'scout' && e.o === 0),
+      },
+      {
+        title: 'Attack!', hl: () => [ENEMY_A, ENEMY_B].filter(id => this.owner(id) === 1),
+        text: `Now you can see them. Attack a red building with <b>more cats than it has</b>, plus a few extra: it keeps making kittens while your cats walk.
+          <div class="tc-tip">A building you take from your rival <b>drops one level</b>, so their best buildings are worth less once you own them.</div>`,
+        waitLabel: '👆 Capture a red building',
+        done: () => this.saw(e => e.k === 'cap' && e.o === 0 && e.prev === 1),
+      },
+      {
+        title: 'Purr Power', hold: true, next: true, glow: ['.purr'],
+        text: () => {
+          const lv = purrLevel(P().purr);
+          return `That capture made your cats purr! The <b>Purr Power</b> stars show how confident your army is. Every star makes <b>all</b> your cats stronger:
+          <div class="tc-jobs">
+            <div>⚔ <b>+${Math.round(PURR.atk * 100)}% attack</b> and 🛡 <b>+${Math.round(PURR.def * 100)}% defense</b> per star</div>
+            <div>💨 <b>+${Math.round(PURR.spd * 100)}% speed</b> and 🐱 <b>+${Math.round(PURR.prod * 100)}% kittens</b> per star</div>
+            <div>🌿 catnip refills <b>+${Math.round(PURR.energy * 100)}% faster</b> per star</div>
+          </div>
+          At 5 stars your army is about <b>${Math.round((1 + PURR.atk * 5) * (1 + PURR.def * 5) * 100 - 100)}% stronger</b> in a fight than at 0. That's huge.
+          <div class="tc-jobs">
+            <div>📈 <b>Earn it:</b> capture buildings (most from rival buildings), win fights on the road, beat back attacks, upgrade.</div>
+            <div>📉 <b>Lose it:</b> lose buildings, lose cats in failed attacks, or sit doing nothing. Purr also cools down slowly over time, so keep attacking.</div>
+          </div>
+          You have <b>${lv} ★</b> right now.`;
+        },
+      },
+      {
+        title: 'Hero skills', glow: ['.spell[data-slot]'],
+        text: () => {
+          const h = this.hero();
+          return `Your hero, <b>${h.name}</b>, has ${h.spells.length} skills. Skills cost <b>🌿 catnip</b>. You start with none and it refills slowly, faster with Catnip Gardens and high Purr Power. ${ph ? 'Tap a skill (hold it to read what it does)' : 'Click a skill or press <kbd>1</kbd>-<kbd>' + h.spells.length + '</kbd> (hover to read it)'}, then tap the map or a glowing building.
+            <div class="tc-tip">Between battles you can <b>upgrade every skill with 🐟 fish</b> in the Heroes screen: each level makes it stronger.</div>`;
+        },
+        waitLabel: '👆 Use one of your hero skills',
+        done: () => this.saw(e => e.k === 'spell' && e.o === 0),
+      },
+      {
+        title: 'Win the battle', next: true, nextLabel: 'Let\'s go! ⚔️', hold: true,
+        text: `That's everything! Your rival will now fight back for real. Take every red building to win.
+          <div class="tc-tip">Remember: towers on the front, forges and gardens at the back, scout before big attacks, and keep your Purr Power high.</div>`,
+      },
+      {
+        title: 'Win the battle', hl: () => g().buildings.filter(b => b.owner === 1).map(b => b.id),
+        enter: () => this.m.wakeAI && this.m.wakeAI(),
+        text: () => `Capture every red building. ${g().buildings.filter(b => b.owner === 1).length} left.`,
+        waitLabel: '⚔️ Defeat your rival',
+        done: () => false,
+      },
+    ];
+  }
+}
+
+/** a short line for the results screen */
+export function tutorialSkill(heroId, slot) { const h = HERO_BY_ID[heroId]; return h ? skillAt(h.spells[slot], 1) : null; }

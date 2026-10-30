@@ -146,7 +146,7 @@ export class P2PTransport extends Emitter {
     conn.on('error', () => {});
   }
   async host() {
-    const prefix = cfg().peerPrefix || 'whiskerwars-v1-';
+    const prefix = cfg().peerPrefix || 'altwhiskerwars-v1-';
     let lastErr;
     for (let attempt = 0; attempt < 4; attempt++) {
       const code = genCode();
@@ -199,7 +199,7 @@ export class P2PTransport extends Emitter {
    * RTC_WAIT. Without the matchmaking service at all, the relay is the only way in.
    */
   async join(code, pid) {
-    const prefix = cfg().peerPrefix || 'whiskerwars-v1-';
+    const prefix = cfg().peerPrefix || 'altwhiskerwars-v1-';
     this.peer = await this._newPeer(null).catch(() => null);
     const relay = new RelayGuest(code).prepare();
     const notFound = msg => Object.assign(new Error(msg), { code: 'notfound' });

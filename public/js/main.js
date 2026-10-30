@@ -25,7 +25,7 @@ Promise.all([fontReady.catch(() => {}), latestP]).then(([, latest]) => {
   try { boot(latest || null); }
   catch (e) {
     console.error(e);
-    document.body.insertAdjacentHTML('beforeend', `<div style="position:fixed;inset:0;display:grid;place-items:center;background:#2b1d3a;color:#fff;font:18px sans-serif;padding:20px;text-align:center">😿 Something went wrong loading Whisker Wars.<br><small>${String(e && e.message || e)}</small></div>`);
+    document.body.insertAdjacentHTML('beforeend', `<div style="position:fixed;inset:0;display:grid;place-items:center;background:#2b1d3a;color:#fff;font:18px sans-serif;padding:20px;text-align:center">😿 Something went wrong loading Alt Whisker Wars.<br><small>${String(e && e.message || e)}</small></div>`);
   }
 });
 

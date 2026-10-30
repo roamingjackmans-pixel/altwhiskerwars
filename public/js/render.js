@@ -489,6 +489,46 @@ export class Renderer {
         }
       }
     }
+    if (ui.tut) this.drawTutorial(ctx, V, ui.tut, t);
+  }
+  /** Tutorial: glowing rings on the buildings it talks about, and a paw that shows the drag to make. */
+  drawTutorial(ctx, V, tut, t) {
+    const k = this.uiScale;
+    for (const id of tut.hl || []) {
+      const b = V.byId.get(id);
+      if (!b) continue;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,224,102,${0.55 + pulse * 0.45})`; ctx.lineWidth = 4 + pulse * 3;
+      ctx.shadowColor = 'rgba(255,200,40,.9)'; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.ellipse(b.x, b.y + b.radius * 0.25, b.radius * (1.35 + pulse * 0.12), b.radius * (0.78 + pulse * 0.07), 0, 0, TAU); ctx.stroke();
+      ctx.restore();
+      const y = b.y - b.radius * 2.1 - 16 * k - Math.abs(Math.sin(t * 4)) * 12;
+      ctx.font = FONT(400, 30 * k); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('👇', b.x, y);
+    }
+    const a = tut.from != null ? V.byId.get(tut.from) : null, z = tut.to != null ? V.byId.get(tut.to) : null;
+    if (a && z) {
+      const route = this.routeView(a.id, z.id) || [{ x: a.x, y: a.y }, { x: z.x, y: z.y }];
+      const pts = route.map(p => ({ x: p.x, y: p.y }));
+      pts[0] = { x: a.x, y: a.y - a.radius * 0.3 }; pts[pts.length - 1] = { x: z.x, y: z.y - z.radius * 0.3 };
+      let L = 0; const seg = [];
+      for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); seg.push(d); L += d; }
+      ctx.save();
+      ctx.setLineDash([6, 10]); ctx.lineDashOffset = -t * 40; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke();
+      ctx.restore();
+      // the paw slides along the road, rests at the end, then starts again
+      const u = Math.min(1, ((t % 2.2) / 1.6));
+      let d = u * L, i = 0;
+      while (i < seg.length - 1 && d > seg[i]) { d -= seg[i]; i++; }
+      const p0 = pts[i], p1 = pts[i + 1] || pts[i], f = seg[i] ? d / seg[i] : 0;
+      const hx = p0.x + (p1.x - p0.x) * f, hy = p0.y + (p1.y - p0.y) * f;
+      ctx.font = FONT(400, 34 * k); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha = u >= 1 ? 0.6 : 1;
+      ctx.fillText('🐾', hx, hy);
+      ctx.globalAlpha = 1;
+    }
   }
   routeArrow(ctx, route, from, to, col, t) {
     const pts = route.map(p => ({ x: p.x, y: p.y }));

@@ -16,7 +16,7 @@ const MAX_FRIENDS = 40;
 const CHECK_EVERY = 25000;       // re-check who is online this often while the friends list is on screen
 const INVITE_WAIT = 45000;       // an unanswered invite expires after this long
 const cfg = () => window.WW_CONFIG || {};
-const prefix = () => (cfg().peerPrefix || 'whiskerwars-v1-') + 'friend-';
+const prefix = () => (cfg().peerPrefix || 'altwhiskerwars-v1-') + 'friend-';
 // ?forcerelay in the page address: act like a phone that can't use PeerJS at all (relay only), for testing
 const FORCE_RELAY = typeof location !== 'undefined' && /[?&]forcerelay\b/.test(location.search);
 
