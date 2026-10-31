@@ -99,10 +99,10 @@ export const CONVERT_COST = { cottage: 10, tower: 20, forge: 20, garden: 20 };
 
 // ---------------- Clans & Heroes ----------------
 export const CLANS = {
-  royal:  { name: 'Royal Court',   color: '#ffcf4d', icon: '👑', desc: 'Knights, builders and old legends of the Velvet Cushion.' },
-  tech:   { name: 'Tech Whiskers', color: '#3de0ff', icon: '🔧', desc: 'Gadgets, beams and things from outer space.' },
-  mystic: { name: 'Moon Mystics',  color: '#b08cff', icon: '🌙', desc: 'Queens, witches and wild nature magic.' },
-  alley:  { name: 'Alley Cats',    color: '#ff8a3d', icon: '🗑️', desc: 'Spooky tricksters of the back streets.' },
+  royal:  { name: 'Fallen Crown', color: '#ffcf4d', icon: '👑', desc: 'Rusty knights and old legends who still think they run the block.' },
+  tech:   { name: 'Glitch Gang',  color: '#3de0ff', icon: '📡', desc: 'Hackers, mad scientists and stuff that fell out of the sky.' },
+  mystic: { name: 'Hex Coven',    color: '#b08cff', icon: '🔮', desc: 'Witches, hexes and weird moon magic.' },
+  alley:  { name: 'Gutter Punks', color: '#ff8a3d', icon: '🤘', desc: 'Back-street punks, ghosts and grave-robbers.' },
 };
 
 // Every hero has 4 skills and no passive. A skill's slot sets its catnip cost and its cooldown; each skill has 5
@@ -130,7 +130,7 @@ const H = list => list.map(h => ({ ...h, spells: h.spells.map((s, k) => ({ ...s,
 export const HEROES = H([
   // ================================================================ Royal Court
   {
-    id: 'barnaby', name: 'Sir Barnaby', title: 'Keeper of the Castle Walls', clan: 'royal', cost: 0, fur: 'gray', role: 'Defense · Easy',
+    id: 'barnaby', name: 'Sir Barnaby', title: 'The Rusty Knight', clan: 'royal', cost: 0, fur: 'gray', role: 'Defense · Easy',
     blurb: 'An armoured knight in a castle-tower crown. Holds the walls, cheers the army on, then strikes everywhere at once.',
     spells: [
       { id: 'stonepaws', name: 'Stone Paws', icon: '🛡️', target: 'own', fx: 'stone', lv: { mul: [1.25, 1.27, 1.29, 1.32, 1.35], dur: [5, 7, 8, 9, 10] },
@@ -158,7 +158,7 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'hammerpaw', name: 'Hammerpaw', title: 'The Royal Builder', clan: 'royal', cost: 2000, fur: 'orange', role: 'Economy · Medium',
+    id: 'hammerpaw', name: 'Hammerpaw', title: 'The Rogue Builder', clan: 'royal', cost: 2000, fur: 'orange', role: 'Economy · Medium',
     blurb: 'Hard hat on, pencil behind the ear. Builds for free, moves whole villages of kittens and keeps everyone in line.',
     spells: [
       { id: 'builder', name: 'Free Build', icon: '🔨', target: 'own', fx: 'build',
@@ -200,7 +200,7 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'thunderpurr', name: 'King Thunderpurr', title: 'The Legend of Old Battles', clan: 'royal', cost: 19500, fur: 'golden', role: 'All-round · Medium',
+    id: 'thunderpurr', name: 'King Thunderpurr', title: 'Legend of a Thousand Brawls', clan: 'royal', cost: 19500, fur: 'golden', role: 'All-round · Medium',
     blurb: 'The warlord from the old stories, in a winged golden helmet. Young cats still try to fight like him. Few can.',
     spells: [
       { id: 'toarms', name: 'To Arms!', icon: '🗡️', target: 'own', fx: 'arms', lv: { dur: [6, 7, 8, 9, 10], atk: [1.3, 1.35, 1.4, 1.45, 1.5] },
@@ -215,7 +215,7 @@ export const HEROES = H([
   },
   // ================================================================ Tech Whiskers
   {
-    id: 'nova', name: 'Commander Nova', title: 'Warp Pilot', clan: 'tech', cost: 750, fur: 'white', role: 'All-round · Easy',
+    id: 'nova', name: 'Commander Nova', title: 'Rogue Warp Pilot', clan: 'tech', cost: 750, fur: 'white', role: 'All-round · Easy',
     blurb: 'Beams cats wherever they\'re needed and hides them where they aren\'t expected.',
     spells: [
       { id: 'beam', name: 'Beam Me Up', icon: '🛸', target: 'own', fx: 'beam', lv: { pct: [0.5, 0.55, 0.6, 0.65, 0.75] },
@@ -342,7 +342,7 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'marigold', name: 'Queen Marigold', title: 'The Unbeatable Queen', clan: 'mystic', cost: 7000, fur: 'persian', role: 'Attack · Hard',
+    id: 'marigold', name: 'Queen Marigold', title: 'The Queen of Mean', clan: 'mystic', cost: 7000, fur: 'persian', role: 'Attack · Hard',
     blurb: 'Pampered, powerful and very persuasive. Every one of her skills works against everybody.',
     spells: [
       { id: 'kittenboom', name: 'Kitten Boom', icon: '🍼', target: 'own', fx: 'kboom', lv: { boost: [1.5, 1.6, 1.7, 1.85, 2], dur: [7.5, 8, 8.5, 9, 10] },
@@ -356,7 +356,7 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'honeydew', name: 'Honeydew', title: 'Friend of the Bees', clan: 'mystic', cost: 9500, fur: 'cream', role: 'Defense · Medium',
+    id: 'honeydew', name: 'Honeydew', title: 'Boss of the Killer Bees', clan: 'mystic', cost: 9500, fur: 'cream', role: 'Defense · Medium',
     blurb: 'A nature witch with flowers in her hair. The bees carry her cats, the wind does the rest.',
     spells: [
       { id: 'deepfreeze', name: 'Deep Freeze', icon: '🧊', target: 'enemy', fx: 'freeze', lv: { dur: [4, 4.5, 5, 5.5, 6] },
@@ -530,6 +530,32 @@ export const FURS = [
   { id: 'void',      name: 'Void Witch',    cost: 600,  base: '#1d1630', dark: '#0d0a18', belly: '#3b2d63', pattern: 'void' },
   { id: 'galaxy',    name: 'Galaxy',        cost: 900,  base: '#3b2a7a', dark: '#1a1240', belly: '#7b6cff', pattern: 'galaxy' },
   { id: 'golden',    name: 'Solid Gold',    cost: 1500, base: '#ffd34d', dark: '#c8961b', belly: '#fff2b0', pattern: 'gold' },
+  // the weird ones: punk prints first, then stranger and stranger (drawn in art.js, one pattern each)
+  { id: 'tartan',    name: 'Tartan Punk',     cost: 1800,   base: '#c8102e', dark: '#7a0a1c', belly: '#c8102e', pattern: 'plaid' },
+  { id: 'leopard',   name: 'Leopard Print',   cost: 2200,   base: '#e8b25a', dark: '#3a2414', belly: '#f6dca8', pattern: 'leopard' },
+  { id: 'zebra',     name: 'Zebra',           cost: 2600,   base: '#f7f5f0', dark: '#16151a', belly: '#f7f5f0', pattern: 'zebra' },
+  { id: 'camo',      name: 'Urban Camo',      cost: 3000,   base: '#8c9096', dark: '#3a3d43', belly: '#8c9096', pattern: 'camo' },
+  { id: 'checker',   name: 'Skate Checker',   cost: 3500,   base: '#f4f2ee', dark: '#141318', belly: '#f4f2ee', pattern: 'checker' },
+  { id: 'neontiger', name: 'Neon Tiger',      cost: 4000,   base: '#1a1720', dark: '#ff2e88', belly: '#1a1720', pattern: 'neon' },
+  { id: 'tiedye',    name: 'Tie-Dye',         cost: 5000,   base: '#ff6ec7', dark: '#7a3cff', belly: '#ff6ec7', pattern: 'tiedye' },
+  { id: 'tattoo',    name: 'Tattoo Flash',    cost: 6000,   base: '#f1dfc4', dark: '#b8946a', belly: '#f8ecd9', pattern: 'tattoo' },
+  { id: 'spray',     name: 'Spray Paint',     cost: 7000,   base: '#c9c6c0', dark: '#6b6762', belly: '#c9c6c0', pattern: 'spray' },
+  { id: 'toxic',     name: 'Toxic Ooze',      cost: 8500,   base: '#8cff3a', dark: '#2f9e1a', belly: '#8cff3a', pattern: 'toxic' },
+  { id: 'zombie',    name: 'Zombie Stitch',   cost: 10000,  base: '#94ab8c', dark: '#5d7356', belly: '#b4c7a8', pattern: 'zombie' },
+  { id: 'xray',      name: 'X-Ray',           cost: 12000,  base: '#141a2a', dark: '#0a0e18', belly: '#141a2a', pattern: 'xray' },
+  { id: 'chrome',    name: 'Liquid Chrome',   cost: 14000,  base: '#c3cad3', dark: '#5b636e', belly: '#c3cad3', pattern: 'chrome' },
+  { id: 'lava',      name: 'Molten Lava',     cost: 16500,  base: '#2b1b18', dark: '#120a09', belly: '#2b1b18', pattern: 'lava' },
+  { id: 'static',    name: 'TV Static',       cost: 19000,  base: '#8a8a8a', dark: '#2a2a2a', belly: '#8a8a8a', pattern: 'static' },
+  { id: 'glitch',    name: 'Glitch',          cost: 22000,  base: '#1de9e3', dark: '#ff2a6d', belly: '#1de9e3', pattern: 'glitch' },
+  { id: 'holo',      name: 'Holographic',     cost: 25000,  base: '#e6d4ff', dark: '#9fd9ff', belly: '#e6d4ff', pattern: 'holo' },
+  { id: 'pixel',     name: '8-Bit',           cost: 29000,  base: '#8bac0f', dark: '#306230', belly: '#8bac0f', pattern: 'pixel' },
+  { id: 'alleyes',   name: 'All-Seeing',      cost: 34000,  base: '#6b2f8f', dark: '#3b1552', belly: '#6b2f8f', pattern: 'eyes' },
+  { id: 'ghost',     name: 'Ghost',           cost: 40000,  base: '#dfeaff', dark: '#9fb6e6', belly: '#dfeaff', pattern: 'ghost' },
+  { id: 'pizza',     name: 'Pizza',           cost: 47000,  base: '#ffcf4a', dark: '#d98c2b', belly: '#ffcf4a', pattern: 'pizza' },
+  { id: 'disco',     name: 'Disco Ball',      cost: 55000,  base: '#c9d0da', dark: '#59606c', belly: '#c9d0da', pattern: 'disco' },
+  { id: 'eldritch',  name: 'Eldritch',        cost: 65000,  base: '#2a1140', dark: '#7b2fc0', belly: '#2a1140', pattern: 'eldritch' },
+  { id: 'inferno',   name: 'Rainbow Inferno', cost: 80000,  base: '#ff5a1f', dark: '#b3200a', belly: '#ff5a1f', pattern: 'inferno' },
+  { id: 'missing',   name: 'Missing Texture', cost: 100000, base: '#ff00ff', dark: '#000000', belly: '#ff00ff', pattern: 'missing' },
 ];
 export const FUR_BY_ID = Object.fromEntries(FURS.map(f => [f.id, f]));
 
@@ -546,15 +572,41 @@ export const HATS = [
   { id: 'tophat',    name: 'Fancy Top Hat',   cost: 400 },
   { id: 'crown',     name: 'Royal Crown',     cost: 600 },
   { id: 'halo',      name: 'Angel Halo',      cost: 750 },
+  // the weird ones (drawn in art.js drawHat), sorted by price
+  { id: 'snapback',    name: 'Backwards Snapback', cost: 1200 },
+  { id: 'mohawk',      name: 'Neon Mohawk',        cost: 1500 },
+  { id: 'bandana',     name: 'Skull Bandana',      cost: 1800 },
+  { id: 'headphones',  name: 'Big Headphones',     cost: 2200 },
+  { id: 'shades',      name: 'Shutter Shades',     cost: 2600 },
+  { id: 'horns',       name: 'Devil Horns',        cost: 3000 },
+  { id: 'spikehelm',   name: 'Spiked Helmet',      cost: 3500 },
+  { id: 'cone',        name: 'Traffic Cone',       cost: 4200 },
+  { id: 'liberty',     name: 'Liberty Spikes',     cost: 5000 },
+  { id: 'plunger',     name: 'Plunger',            cost: 6000 },
+  { id: 'gasmask',     name: 'Gas Mask',           cost: 7000 },
+  { id: 'duck',        name: 'Rubber Duck',        cost: 8500 },
+  { id: 'fishbowl',    name: 'Fishbowl Helmet',    cost: 10000 },
+  { id: 'antennae',    name: 'Alien Antennae',     cost: 12000 },
+  { id: 'candles',     name: 'Melting Candles',    cost: 14000 },
+  { id: 'toast',       name: 'Slice of Toast',     cost: 16500 },
+  { id: 'skullcrown',  name: 'Skull Crown',        cost: 19000 },
+  { id: 'squid',       name: 'Squid Hat',          cost: 22000 },
+  { id: 'eyestalks',   name: 'Eyeball Stalks',     cost: 25000 },
+  { id: 'ufo',         name: 'Tiny UFO',           cost: 29000 },
+  { id: 'blackhole',   name: 'Pocket Black Hole',  cost: 34000 },
+  { id: 'fire',        name: 'Head on Fire',       cost: 40000 },
+  { id: 'thirdeye',    name: 'Third Eye',          cost: 50000 },
+  { id: 'tinycat',     name: 'Tiny Cat',           cost: 65000 },
+  { id: 'galaxybrain', name: 'Galaxy Brain',       cost: 100000 },
 ];
 export const HAT_BY_ID = Object.fromEntries(HATS.map(h => [h.id, h]));
 
 export const EMOTES = [
-  { id: 'meow',  text: 'Meow!',      icon: '😺' },
+  { id: 'meow',  text: 'Rawr!',      icon: '😼' },
   { id: 'gg',    text: 'Good game!', icon: '🤝' },
   { id: 'hiss',  text: 'Hissss!',    icon: '😾' },
   { id: 'lol',   text: 'LOL',        icon: '😹' },
-  { id: 'love',  text: 'Purr~',      icon: '😻' },
+  { id: 'love',  text: 'Rock on!',   icon: '🤘' },
   { id: 'wow',   text: 'Whoa!',      icon: '🙀' },
   { id: 'nap',   text: 'Zzz...',     icon: '😴' },
   { id: 'fish',  text: 'Fish pls',   icon: '🐟' },
@@ -562,12 +614,12 @@ export const EMOTES = [
 
 // ---------------- Map themes ----------------
 export const THEMES = {
-  meadow:  { name: 'Sunny Meadow',    ground: '#8fd16a', ground2: '#7cc35a', accent: '#ffe27a', ambient: 'petals' },
-  rooftop: { name: 'Sunset Rooftops', ground: '#c98f6b', ground2: '#b77c5a', accent: '#ffb36b', ambient: 'leaves' },
-  snow:    { name: 'Snowy Peaks',     ground: '#eaf4ff', ground2: '#d6e7f7', accent: '#9fd0ff', ambient: 'snow' },
-  night:   { name: 'Moonlit Garden',  ground: '#2f4a5e', ground2: '#28405a', accent: '#b9a6ff', ambient: 'fireflies' },
-  beach:   { name: 'Fishmarket Docks',ground: '#f2d9a0', ground2: '#e6c886', accent: '#5fd0e6', ambient: 'bubbles' },
-  candy:   { name: 'Candy Kingdom',   ground: '#ffc6e2', ground2: '#ffb3d8', accent: '#b8f0ff', ambient: 'sparkles' },
+  meadow:  { name: 'Overgrown Lot',   ground: '#8fd16a', ground2: '#7cc35a', accent: '#ffe27a', ambient: 'petals' },
+  rooftop: { name: 'Rooftop Riot',    ground: '#c98f6b', ground2: '#b77c5a', accent: '#ffb36b', ambient: 'leaves' },
+  snow:    { name: 'Frostbite Peaks', ground: '#eaf4ff', ground2: '#d6e7f7', accent: '#9fd0ff', ambient: 'snow' },
+  night:   { name: 'Midnight Garden', ground: '#2f4a5e', ground2: '#28405a', accent: '#b9a6ff', ambient: 'fireflies' },
+  beach:   { name: 'Rusty Docks',     ground: '#f2d9a0', ground2: '#e6c886', accent: '#5fd0e6', ambient: 'bubbles' },
+  candy:   { name: 'Sugar Crash',     ground: '#ffc6e2', ground2: '#ffb3d8', accent: '#b8f0ff', ambient: 'sparkles' },
 };
 
 // ---------------- Maps ----------------
@@ -1406,19 +1458,19 @@ export const AI_LEVELS = {
 // each get their own fixed map (the level's seed makes it), so they play the same every time.
 // boss: the last four rivals wear a crown and bring their skills one level higher.
 export const CAMPAIGN = [
-  { id: 1,  name: 'First Whiskers',     map: 'meadow',      ai: 'easy',   enemy: 'barnaby',     reward: 300,  tip: 'Drag from your cottage to a stray building to send cats.' },
+  { id: 1,  name: 'New Kid on the Block',     map: 'meadow',      ai: 'easy',   enemy: 'barnaby',     reward: 300,  tip: 'Drag from your cottage to a stray building to send cats.' },
   { id: 2,  name: 'Tower Trouble',      map: 'rooftops',    ai: 'easy',   enemy: 'mortar',      reward: 300,  tip: 'Towers shoot cats walking past. Send a big group at once!' },
-  { id: 3,  name: 'Snowball Fight',     map: 'snowy',       ai: 'easy',   enemy: 'glacia',      reward: 330,  tip: 'Tap your cottage to upgrade it. Upgraded cottages make kittens faster.' },
+  { id: 3,  name: 'Frostbite',     map: 'snowy',       ai: 'easy',   enemy: 'glacia',      reward: 330,  tip: 'Tap your cottage to upgrade it. Upgraded cottages make kittens faster.' },
   { id: 4,  name: 'Builder\'s Yard',     map: 'ponds',       ai: 'easy',   enemy: 'hammerpaw',   reward: 360,  tip: 'Tap one of your buildings to change its job: towers up front, forges and gardens at the back.' },
   { id: 5,  name: 'Lantern Moat',       map: 'moat',        ai: 'easy',   enemy: 'morrow',      reward: 390,  tip: 'You can\'t see how many cats a rival has inside (?). Watch the squads that leave and arrive to guess.' },
-  { id: 6,  name: 'Garden Party',       map: 'moonlit',     ai: 'normal', enemy: 'honeydew',    reward: 420,  tip: 'Catnip is scarce. Gardens refill it much faster, and skills win battles!' },
+  { id: 6,  name: 'Killer Bees',       map: 'moonlit',     ai: 'normal', enemy: 'honeydew',    reward: 420,  tip: 'Catnip is scarce. Gardens refill it much faster, and skills win battles!' },
   { id: 7,  name: 'Dockside Dash',      map: 'docks',       ai: 'normal', enemy: 'nova',        reward: 450,  tip: 'Forges make all your cats hit harder.' },
   { id: 8,  name: 'Iron Bridges',       map: 'fjord',       ai: 'normal', enemy: 'ironclaw',    reward: 480,  tip: 'Only two bridges cross the fjord. Whoever holds them controls the battle.' },
   { id: 9,  name: 'Ninja Night',        map: 'maze',        ai: 'normal', enemy: 'rift',        reward: 510,  tip: 'Cats walk around hedges and ponds. Drag onto a building to see the road they will take.' },
   { id: 10, name: 'Sugar Rush',         map: 'candy',       ai: 'normal', enemy: 'pebble',      reward: 540,  tip: 'The Grand Cat Tree is worth fighting for.' },
   { id: 11, name: 'Into the Wild',      map: 'random',      ai: 'normal', enemy: 'willow',      reward: 570,  tip: 'Uncharted land! Grab the strays closest to you before your rival does.' },
   { id: 12, name: 'Sandy Shores',       map: 'piers',       ai: 'normal', enemy: 'saffron',     reward: 600,  tip: 'Rain slows every cat walking under it. Send your squads around the clouds.' },
-  { id: 13, name: 'Royal Ball',         map: 'gumdrops',    ai: 'hard',   enemy: 'marigold',    reward: 640,  tip: 'Hush stops everyone\'s skills for a few seconds. Cast your big one first, or wait it out.' },
+  { id: 13, name: 'Crash the Ball',         map: 'gumdrops',    ai: 'hard',   enemy: 'marigold',    reward: 640,  tip: 'Hush stops everyone\'s skills for a few seconds. Cast your big one first, or wait it out.' },
   { id: 14, name: 'Mad Science',        map: 'archipelago', ai: 'hard',   enemy: 'tickstorm',   reward: 680,  tip: 'Bridges are chokepoints. Spread out so one area spell cannot hit everything.' },
   { id: 15, name: 'Space Race',         map: 'alleys',      ai: 'hard',   enemy: 'orbit',       reward: 720,  tip: 'Swipe across several of your buildings to send from all of them at once.' },
   { id: 16, name: 'Moth Caves',         map: 'molehills',   ai: 'hard',   enemy: 'mossbeard',   reward: 760,  tip: 'Circle of Life can save a building once, with 20 fresh cats. Bring a second wave.' },
@@ -1428,7 +1480,7 @@ export const CAMPAIGN = [
   { id: 20, name: 'Mind Games',         map: 'ridge',       ai: 'hard',   enemy: 'whirl',       reward: 950,  tip: 'Purr Power stars make your buildings much tougher. Never attack into a rival with more stars than you.' },
   { id: 21, name: 'Bone Yard',          map: 'random',      ai: 'insane', enemy: 'bones',       reward: 1000, tip: 'Panic empties a building in a moment. Keep a few strong buildings, not one huge one.', boss: true, seed: 1372 },
   { id: 22, name: 'Witching Hour',      map: 'chocoriver',  ai: 'insane', enemy: 'cackle',      reward: 1100, tip: 'Copy Cat steals the last skill you cast. Save your biggest one for the right moment.', boss: true },
-  { id: 23, name: 'Legend of the Peak', map: 'random',      ai: 'insane', enemy: 'thunderpurr', reward: 1200, tip: 'Fortress turns all his buildings into towers for a few seconds. Wait it out, then strike.', boss: true },
+  { id: 23, name: 'Last Legend Standing', map: 'random',      ai: 'insane', enemy: 'thunderpurr', reward: 1200, tip: 'Fortress turns all his buildings into towers for a few seconds. Wait it out, then strike.', boss: true },
   { id: 24, name: 'Many Faces',         map: 'hedgerow',    ai: 'insane', enemy: 'riddle',      reward: 1500, tip: 'The final boss. Show them who the real top cat is!', boss: true },
 ];
 /** a campaign level's battle seed (it also makes the map for the 'random' levels; a level can pick its own) */
@@ -1438,19 +1490,19 @@ export const LEGACY_CAMPAIGN = { 1: 1, 2: 2, 3: 3, 4: 6, 5: 7, 6: 10, 7: 9, 8: 8
 
 // ---------------- Achievements ----------------
 export const ACHIEVEMENTS = [
-  { id: 'firstwin',   name: 'First Paw',        desc: 'Win your first match.',                     reward: 300 },
+  { id: 'firstwin',   name: 'First Scratch',    desc: 'Win your first match.',                     reward: 300 },
   { id: 'online1',    name: 'Friendly Fire',    desc: 'Play an online match with a friend.',       reward: 300 },
-  { id: 'online5',    name: 'Neighborhood Boss',desc: 'Win 5 online matches.',                     reward: 750 },
-  { id: 'maxcottage', name: 'Dream House',      desc: 'Upgrade a cottage to level 5.',             reward: 300 },
-  { id: 'capture50',  name: 'Conqueror',        desc: 'Capture 50 buildings (total).',             reward: 450 },
+  { id: 'online5',    name: 'Runs the Block',   desc: 'Win 5 online matches.',                     reward: 750 },
+  { id: 'maxcottage', name: 'Punk House',       desc: 'Upgrade a cottage to level 5.',             reward: 300 },
+  { id: 'capture50',  name: 'Turf Taker',       desc: 'Capture 50 buildings (total).',             reward: 450 },
   { id: 'spells50',   name: 'Spell Slinger',    desc: 'Cast 50 spells (total).',                   reward: 450 },
-  { id: 'heroes5',    name: 'Cat Collector',    desc: 'Unlock 5 heroes.',                          reward: 750 },
+  { id: 'heroes5',    name: 'Misfit Collector', desc: 'Unlock 5 heroes.',                          reward: 750 },
   { id: 'flawless',   name: 'Untouchable',      desc: 'Win without losing a single building.',     reward: 600 },
   { id: 'speedy',     name: 'Zoomies',          desc: 'Win a match in under 3 minutes.',           reward: 600 },
   { id: 'insane',     name: 'Lion Tamer',       desc: 'Beat the Lion King (Insane) AI.',           reward: 900 },
   { id: 'campaign',   name: 'Legend of the Litter', desc: 'Finish the whole campaign.',            reward: 1500 },
-  { id: 'fashion',    name: 'Cat Walk',         desc: 'Own 5 cosmetic items.',                     reward: 300 },
-  { id: 'army200',    name: 'Crazy Cat Lady',   desc: 'Have 200 cats at once.',                    reward: 450 },
+  { id: 'fashion',    name: 'Thrift Store Icon', desc: 'Own 5 cosmetic items.',                     reward: 300 },
+  { id: 'army200',    name: 'Cat Riot',         desc: 'Have 200 cats at once.',                    reward: 450 },
 ];
 
 export const RULES = [

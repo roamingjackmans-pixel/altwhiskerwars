@@ -133,7 +133,7 @@ export class Tutorial {
     return [
       {
         title: 'Your kingdom', hold: true, next: true, hl: [HOME],
-        text: `Welcome, commander! The <b style="color:#3d9bff">blue</b> cottage is <b>yours</b>. The number on it is how many cats live inside, and a cottage makes new kittens all the time.
+        text: `Welcome to the block, boss! The <b style="color:#3d9bff">blue</b> cottage is <b>yours</b>. The number on it is how many cats live inside, and a cottage makes new kittens all the time.
           The <b style="color:#ff5468">red</b> buildings belong to your rival. The grey ones are <b>strays</b>: nobody owns them yet.`,
       },
       {

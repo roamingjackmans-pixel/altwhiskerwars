@@ -199,20 +199,6 @@ function ep(c, d, t, m, dur, v) { // FM electric piano
   car.start(t); mod.start(t); car.stop(end + 0.05); mod.stop(end + 0.05);
   car.onended = () => disc(car, mod, mg, g);
 }
-function vibe(c, d, t, m, dur, v) { // soft vibraphone with tremolo
-  const f = mtof(m);
-  const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(f, t);
-  const trem = c.createGain(); trem.gain.setValueAtTime(0.8, t);
-  const lfo = c.createOscillator(); lfo.frequency.setValueAtTime(4.6, t);
-  const lg = c.createGain(); lg.gain.setValueAtTime(0.2, t);
-  lfo.connect(lg); lg.connect(trem.gain);
-  const g = envGain(c, t, 0.004, 0.11 * v, Math.max(dur, 0.25) + 1.1);
-  o.connect(trem); trem.connect(g); g.connect(d);
-  const end = t + Math.max(dur, 0.25) + 1.15;
-  o.start(t); lfo.start(t); o.stop(end); lfo.stop(end);
-  o.onended = () => disc(o, trem, lfo, lg, g);
-  tone(c, d, { type: 'sine', f: f * 4, t, dur: 0.18, a: 0.002, peak: 0.018 * v });
-}
 function bassSoft(c, d, t, m, dur, v) {
   const f = mtof(m);
   const o1 = c.createOscillator(); o1.type = 'triangle'; o1.frequency.setValueAtTime(f, t);
@@ -257,11 +243,6 @@ function pluck(c, d, t, m, dur, v) { // chiptune-ish pulse lead
   o1.start(t); o2.start(t); o1.stop(end + 0.03); o2.stop(end + 0.03);
   o1.onended = () => disc(o1, o2, lp, g, lfo, lg);
 }
-function marimba(c, d, t, m, dur, v) {
-  const f = mtof(m);
-  tone(c, d, { type: 'sine', f, t, dur: 0.32, a: 0.002, peak: 0.13 * v });
-  tone(c, d, { type: 'sine', f: f * 4, t, dur: 0.06, a: 0.001, peak: 0.03 * v });
-}
 function stab(c, d, t, m, dur, v) { // staccato strings
   const f = mtof(m);
   const o1 = c.createOscillator(); o1.type = 'sawtooth'; o1.frequency.setValueAtTime(f, t); o1.detune.setValueAtTime(-8, t);
@@ -299,6 +280,50 @@ function brass(c, d, t, m, dur, v, wah = false) {
   o1.onended = () => disc(o1, o2, lp, g);
   return [o1, o2];
 }
+// Distorted guitar. A power chord (root, fifth, octave) of detuned saws through a soft-clipping waveshaper, then a
+// cabinet-ish band-pass. mute = palm-muted chug: darker and shorter.
+const DIST = (() => { const n = 2048, a = new Float32Array(n), k = 26; for (let i = 0; i < n; i++) { const x = (i * 2) / (n - 1) - 1; a[i] = ((1 + k) * x) / (1 + k * Math.abs(x)); } return a; })();
+function gtr(c, d, t, m, dur, v, mute = false) {
+  const f = mtof(m);
+  const pre = c.createGain(); pre.gain.value = 0.5;
+  const ws = c.createWaveShaper(); ws.curve = DIST; ws.oversample = '2x';
+  const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 85;
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.9;
+  lp.frequency.setValueAtTime(mute ? 1700 : 3300, t);
+  if (mute) lp.frequency.exponentialRampToValueAtTime(650, t + 0.13);
+  const g = c.createGain();
+  const end = adsr(g.gain, t, (mute ? 0.05 : 0.04) * v, 0.003, mute ? 0.07 : 0.3, mute ? 0.25 : 0.7, dur, mute ? 0.03 : 0.12);
+  const oscs = [[1, -7], [1, 7], [1.4983, 0], [2, 4]].map(([mul, det]) => {
+    const o = c.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f * mul, t); o.detune.setValueAtTime(det, t);
+    o.connect(pre); return o;
+  });
+  pre.connect(ws); ws.connect(hp); hp.connect(lp); lp.connect(g); g.connect(d);
+  for (const o of oscs) { o.start(t); o.stop(end + 0.03); }
+  oscs[0].onended = () => disc(...oscs, pre, ws, hp, lp, g);
+}
+function chug(c, d, t, m, dur, v) { gtr(c, d, t, m, dur, v, true); }
+// fuzzy single-note lead with a little vibrato on long notes
+function lead(c, d, t, m, dur, v) {
+  const f = mtof(m);
+  const pre = c.createGain(); pre.gain.value = 0.35;
+  const ws = c.createWaveShaper(); ws.curve = DIST;
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1.1; lp.frequency.setValueAtTime(3800, t);
+  const g = c.createGain();
+  const end = adsr(g.gain, t, 0.032 * v, 0.006, 0.12, 0.75, dur, 0.09);
+  const o1 = c.createOscillator(); o1.type = 'sawtooth'; o1.frequency.setValueAtTime(f, t);
+  const o2 = c.createOscillator(); o2.type = 'square'; o2.frequency.setValueAtTime(f, t); o2.detune.setValueAtTime(10, t);
+  let lfo = null, lg = null;
+  if (dur > 0.22) {
+    lfo = c.createOscillator(); lfo.frequency.setValueAtTime(5.8, t);
+    lg = c.createGain(); lg.gain.setValueAtTime(0, t + 0.12); lg.gain.linearRampToValueAtTime(f * 0.014, t + 0.3);
+    lfo.connect(lg); lg.connect(o1.frequency); lg.connect(o2.frequency);
+    lfo.start(t); lfo.stop(end + 0.03);
+  }
+  o1.connect(pre); o2.connect(pre); pre.connect(ws); ws.connect(lp); lp.connect(g); g.connect(d);
+  o1.start(t); o2.start(t); o1.stop(end + 0.03); o2.stop(end + 0.03);
+  o1.onended = () => disc(o1, o2, pre, ws, lp, g, lfo, lg);
+}
 // drums
 function kick(c, d, t, m, dur, v) {
   tone(c, d, { type: 'sine', f: 155, f2: 45, gt: 0.11, t, dur: 0.32, a: 0.002, peak: 0.75 * v });
@@ -310,11 +335,6 @@ function snare(c, d, t, m, dur, v) {
 }
 function hat(c, d, t, m, dur, v) { noise(c, d, { t, dur: 0.04, a: 0.001, peak: 0.13 * v, type: 'highpass', f: 7500, q: 0.5 }); }
 function ohat(c, d, t, m, dur, v) { noise(c, d, { t, dur: 0.22, a: 0.001, peak: 0.1 * v, type: 'highpass', f: 7000, q: 0.5 }); }
-function shaker(c, d, t, m, dur, v) { noise(c, d, { t, dur: 0.07, a: 0.012, peak: 0.07 * v, type: 'bandpass', f: 7000, q: 1.2 }); }
-function rim(c, d, t, m, dur, v) {
-  tone(c, d, { type: 'triangle', f: 1100, t, dur: 0.035, a: 0.001, peak: 0.12 * v });
-  tone(c, d, { type: 'sine', f: 1700, t, dur: 0.02, a: 0.001, peak: 0.07 * v });
-}
 function tom(c, d, t, m, dur, v) { const f = mtof(m || 50); tone(c, d, { type: 'sine', f, f2: f * 0.65, gt: 0.25, t, dur: 0.3, a: 0.002, peak: 0.42 * v }); }
 function crash(c, d, t, m, dur, v) {
   noise(c, d, { t, dur: 1.4, a: 0.003, peak: 0.11 * v, type: 'highpass', f: 4500, q: 0.4 });
@@ -690,101 +710,96 @@ function makeScore(bars, spb) {
 
 // ---------------------------------------------------------------- tracks
 function buildMenu() {
+  // E minor, i - VI - III - VII. Palm-muted chugs with a half-time beat, then the chords open up and the drums
+  // double. A fuzzy lead comes in on the second and fourth 8 bars.
   const spb = 16, BARS = 32;
-  const C = (ch, root, bass) => ({ ch, root, bass, pcs: pcsOf(ch) });
-  const prog = [
-    C([57, 60, 64, 67], 5, 41), C([55, 60, 64, 69], 9, 45), C([58, 62, 65, 69], 10, 46), C([58, 62, 64, 67], 0, 48),
-    C([57, 60, 64, 67], 5, 41), C([53, 57, 60, 64], 2, 50), C([58, 62, 65, 69], 7, 43), C([58, 60, 64, 67], 0, 48),
-    C([58, 62, 65, 69], 10, 46), C([55, 60, 64, 69], 9, 45), C([58, 62, 65, 67], 7, 43), C([57, 60, 64, 67], 5, 41),
-    C([57, 60, 62, 65], 2, 50), C([58, 62, 65, 67], 7, 43), C([58, 62, 65, 67], 0, 48), C([58, 61, 64, 67], 0, 48),
-  ];
+  const C = (ch, g) => ({ ch, g, pcs: pcsOf(ch) });   // g = guitar root (the bass plays an octave below)
+  const Em = C([52, 55, 59], 40), Cc = C([48, 52, 55], 36), G = C([55, 59, 62], 43), D = C([50, 54, 57], 38);
+  const A = [Em, Cc, G, D, Em, Cc, G, D];
+  const B = [Cc, D, Em, Em, Cc, D, G, D];
   const { score, add } = makeScore(BARS, spb);
-  const compA = [[0, 2, 0.75], [3, 2, 0.55], [6, 3, 0.6], [10, 2, 0.55], [13, 3, 0.5]];
-  const compB = [[0, 3, 0.7], [4, 2, 0.5], [7, 3, 0.6], [10, 2, 0.5], [12, 2, 0.5], [14, 2, 0.45]];
-  for (let bar = 0; bar < BARS; bar++) {
-    const c = prog[bar % 16];
-    for (const [s, l, v] of (bar % 2 ? compB : compA)) for (const m of c.ch) add(bar, s, ep, m, l, v);
-    const r = c.bass, fifth = r + 7 > 52 ? r - 5 : r + 7;
-    add(bar, 0, bassSoft, r, 5, 0.9); add(bar, 6, bassSoft, fifth, 2, 0.6);
-    add(bar, 8, bassSoft, r, 5, 0.8); add(bar, 14, bassSoft, fifth, 2, 0.55);
-    add(bar, 0, kick, 0, 1, 0.55); add(bar, bar % 2 ? 10 : 8, kick, 0, 1, 0.35);
-    for (const s of [3, 6, 10, 12]) add(bar, s, rim, 0, 1, 0.22);
-    for (let s = 0; s < 16; s++) add(bar, s, shaker, 0, 1, s % 4 === 2 ? 0.9 : 0.5);
-  }
-  const scale = [5, 7, 9, 0, 2];
+  const scale = [4, 7, 9, 11, 2];   // E minor pentatonic
   const rhythms = [[[0, 4], [6, 2], [8, 6]], [[2, 2], [4, 4], [10, 4]], [[0, 6], [8, 2], [10, 2], [12, 4]], [[0, 3], [3, 3], [6, 6]], [[4, 4], [8, 4], [12, 4]]];
   const cadences = [[[0, 4], [4, 4], [8, 8]], [[0, 2], [2, 2], [4, 12]]];
-  const mel1 = genMelody({ seed: 11, chords: prog.slice(4, 16), scale, lo: 65, hi: 84, rhythms, cadences, start: 72 });
-  mel1.forEach((ns, i) => ns.forEach(n => add(4 + i, n.s, vibe, n.m, n.l, n.v)));
-  const mel2 = genMelody({ seed: 23, chords: prog, scale, lo: 65, hi: 84, rhythms, cadences, start: 76 });
-  mel2.forEach((ns, i) => { if (i >= 8 && i < 12) return; ns.forEach(n => add(16 + i, n.s, vibe, n.m, n.l, n.v * 0.95)); });
-  return { bpm: 88, spb, len: BARS * spb, score, swing: 0.14, human: true, lp: 5200 };
+  const melA = genMelody({ seed: 13, chords: A, scale, lo: 64, hi: 81, rhythms, cadences, start: 71 });
+  const melB = genMelody({ seed: 29, chords: B, scale, lo: 64, hi: 83, rhythms, cadences, start: 76 });
+  for (let bar = 0; bar < BARS; bar++) {
+    const sec = bar < 16 ? 'A' : 'B', i = bar % 8, c = (sec === 'A' ? A : B)[i], withLead = (bar >> 3) % 2 === 1;
+    if (sec === 'A') {
+      // palm-muted 8ths, the downbeat hit a little harder; the last 8th of every 2nd bar rings open
+      for (let s = 0; s < 16; s += 2) {
+        if (s === 14 && i % 2) add(bar, s, gtr, c.g, 2, 0.8);
+        else add(bar, s, chug, c.g, 1.5, s % 8 === 0 ? 1 : 0.75);
+      }
+      add(bar, 0, bassChip, c.g - 12, 6, 0.9); add(bar, 8, bassChip, c.g - 12, 6, 0.8);
+      add(bar, 0, kick, 0, 1, 0.9); if (i % 2) add(bar, 10, kick, 0, 1, 0.6);
+      add(bar, 8, snare, 0, 1, 0.75);
+      for (let s = 0; s < 16; s += 2) add(bar, s, hat, 0, 1, s % 4 === 0 ? 0.7 : 0.45);
+    } else {
+      // open power chords: long hit, push on the "and" of 2, long hit, push
+      for (const [st, l, v] of [[0, 6, 1], [6, 2, 0.8], [8, 6, 0.95], [14, 2, 0.75]]) add(bar, st, gtr, c.g, l, v);
+      for (let s = 0; s < 16; s += 2) add(bar, s, bassChip, c.g - 12, 1.6, s % 4 === 0 ? 0.95 : 0.7);
+      for (const s of [0, 6, 8]) add(bar, s, kick, 0, 1, s ? 0.8 : 1);
+      add(bar, 4, snare, 0, 1, 0.8); add(bar, 12, snare, 0, 1, 0.85);
+      for (let s = 0; s < 16; s += 2) add(bar, s, ohat, 0, 1, s % 4 === 0 ? 0.55 : 0.35);
+      if (i === 7) [12, 13, 14, 15].forEach((s, k) => add(bar, s, tom, [55, 50, 45, 40][k], 1, 0.6));
+    }
+    if (i === 0) add(bar, 0, crash, 0, 1, sec === 'B' ? 0.9 : 0.55);
+    if (withLead) for (const n of (sec === 'A' ? melA : melB)[i]) {
+      add(bar, n.s, lead, n.m, n.l, n.v);
+      if (sec === 'B') add(bar, n.s, lead, n.m - 12, n.l, n.v * 0.45);
+    }
+  }
+  return { bpm: 100, spb, len: BARS * spb, score, swing: 0, human: true, lp: 6500, gain: 1.5 };
 }
 
 function buildBattle() {
+  // A minor punk at 168 bpm: driving 8th-note power chords, 8th-note bass, a lead that comes in and climbs.
   const spb = 16;
-  const C = (ch, root, bass) => ({ ch, root, bass, pcs: pcsOf(ch) });
-  const G = C([55, 59, 62], 7, 43), D = C([54, 57, 62], 2, 38), Em = C([55, 59, 64], 4, 40), Cc = C([55, 60, 64], 0, 36);
-  const Bm = C([54, 59, 62], 11, 35), Am = C([57, 60, 64], 9, 45), D7 = C([54, 57, 60, 62], 2, 38);
-  const A = [G, D, Em, Cc, G, D, Cc, D];
-  const B = [Cc, D, Bm, Em, Cc, D, Am, D7];
+  const C = (ch, g) => ({ ch, g, pcs: pcsOf(ch) });
+  const Am = C([57, 60, 64], 45), F = C([53, 57, 60], 41), Cc = C([55, 60, 64], 48), G = C([55, 59, 62], 43), E = C([52, 59, 64], 40);
+  const A = [Am, F, Cc, G, Am, F, Cc, G];
+  const B = [F, G, Am, Am, F, G, E, E];
   const form = [['A', A, 1], ['A', A, 2], ['B', B, 1], ['B', B, 2]];
   const BARS = 32;
   const { score, add } = makeScore(BARS, spb);
-  const scale = [7, 9, 11, 0, 2, 4, 6];
+  const scale = [9, 11, 0, 2, 4, 5, 7];
   const rhythms = [
     [[0, 2], [2, 2], [4, 2], [6, 2], [8, 4], [12, 4]],
     [[0, 3], [3, 3], [6, 2], [8, 2], [10, 2], [12, 4]],
-    [[0, 2], [2, 1], [3, 1], [4, 4], [8, 2], [10, 2], [12, 2], [14, 2]],
     [[0, 4], [4, 2], [6, 2], [8, 6], [14, 2]],
-    [[0, 1], [1, 1], [2, 2], [4, 2], [6, 2], [8, 2], [10, 6]],
+    [[0, 2], [2, 2], [4, 4], [8, 2], [10, 2], [12, 4]],
   ];
   const cadences = [[[0, 2], [2, 2], [4, 4], [8, 8]], [[0, 3], [3, 3], [6, 10]]];
-  const melA = genMelody({ seed: 5, chords: A, scale, lo: 67, hi: 86, rhythms, cadences, start: 74 });
-  const melB = genMelody({ seed: 41, chords: B, scale, lo: 67, hi: 88, rhythms, cadences, start: 79 });
-  const patA = [0, 1, 2, 3, 2, 1, 0, 1, 0, 1, 2, 3, 2, 3, 2, 1];
-  const patB = [0, 2, 1, 3, 0, 2, 1, 3, 1, 3, 2, 0, 1, 3, 2, 3];
+  const melA = genMelody({ seed: 7, chords: A, scale, lo: 64, hi: 84, rhythms, cadences, start: 72 });
+  const melB = genMelody({ seed: 53, chords: B, scale, lo: 67, hi: 86, rhythms, cadences, start: 76 });
   let bar = 0;
   for (const [sec, chords, pass] of form) {
     chords.forEach((c, i) => {
-      const arp = [];
-      for (let m = 67; m <= 86 && arp.length < 4; m++) if (c.pcs.includes(m % 12)) arp.push(m);
-      // bass
+      // guitar: A section chugs, then opens up on the second pass; B section rings open
       for (let s = 0; s < 16; s += 2) {
-        const m = sec === 'A' ? (s % 4 === 0 ? c.bass : c.bass + 12) : [c.bass, c.bass, c.bass + 7, c.bass + 12][(s / 2) % 4];
-        add(bar, s, bassChip, m, 1.6, s % 4 === 0 ? 0.95 : 0.75);
+        const open = sec === 'B' || pass === 2;
+        add(bar, s, open ? gtr : chug, c.g, open ? 2 : 1.5, s % 8 === 0 ? 1 : s % 4 === 0 ? 0.85 : 0.7);
       }
-      // arps
-      const pat = sec === 'A' ? patA : patB;
-      for (let s = 0; s < 16; s++) {
-        if (sec === 'A' && pass === 1 && s % 2) continue;
-        add(bar, s, marimba, arp[pat[s] % arp.length], 1, s % 4 === 0 ? 0.32 : 0.2);
-      }
-      // drums
-      if (i === 0) add(bar, 0, crash, 0, 1, sec === 'B' ? 0.9 : 0.6);
-      if (sec === 'A') { add(bar, 0, kick, 0, 1, 1); add(bar, 8, kick, 0, 1, 0.9); if (i % 2) add(bar, 10, kick, 0, 1, 0.6); }
-      else for (const s of [0, 4, 8, 12]) add(bar, s, kick, 0, 1, s ? 0.85 : 1);
-      add(bar, 4, snare, 0, 1, 0.8);
-      if (i % 4 === 3) { [12, 13, 14, 15].forEach((s, k) => add(bar, s, snare, 0, 1, 0.35 + k * 0.15)); }
-      else add(bar, 12, snare, 0, 1, 0.8);
-      for (let s = 0; s < 16; s += (sec === 'A' ? 2 : 1)) add(bar, s, hat, 0, 1, s % 4 === 2 ? 0.8 : 0.45);
-      if (sec === 'B') add(bar, 14, ohat, 0, 1, 0.5);
-      // pads under B
-      if (sec === 'B') for (const m of c.ch) add(bar, 0, pad, m, 16, 0.9);
-      // melody
-      const mel = (sec === 'A' ? melA : melB)[i];
-      for (const n of mel) {
-        if (sec === 'A' && pass === 1) add(bar, n.s, marimba, n.m, n.l, n.v * 1.6);
-        else {
-          add(bar, n.s, pluck, n.m, n.l, n.v);
-          if (sec === 'A' && pass === 2) add(bar, n.s, marimba, n.m - 12, n.l, n.v * 0.9);
-          if (sec === 'B' && pass === 2) add(bar, n.s, pluck, n.m + 12, n.l, n.v * 0.35);
-        }
+      // bass: 8th notes on the root (up an octave on the last two in the A section)
+      for (let s = 0; s < 16; s += 2) add(bar, s, bassChip, c.g - 12 + (sec === 'A' && s >= 12 ? 12 : 0), 1.6, s % 4 === 0 ? 0.95 : 0.75);
+      // drums: punk beat
+      if (i === 0) add(bar, 0, crash, 0, 1, sec === 'B' ? 0.95 : 0.7);
+      for (const s of [0, 8, 10]) add(bar, s, kick, 0, 1, s === 10 ? 0.7 : 1);
+      if (sec === 'B') add(bar, 6, kick, 0, 1, 0.7);
+      add(bar, 4, snare, 0, 1, 0.85);
+      if (i % 4 === 3) [12, 13, 14, 15].forEach((s, k) => add(bar, s, snare, 0, 1, 0.4 + k * 0.15));
+      else add(bar, 12, snare, 0, 1, 0.85);
+      for (let s = 0; s < 16; s += 2) add(bar, s, sec === 'B' ? ohat : hat, 0, 1, s % 4 === 0 ? 0.75 : 0.45);
+      // lead
+      if (!(sec === 'A' && pass === 1)) for (const n of (sec === 'A' ? melA : melB)[i]) {
+        add(bar, n.s, lead, n.m, n.l, n.v);
+        if (sec === 'B' && pass === 2) add(bar, n.s, lead, n.m + 12, n.l, n.v * 0.4);
       }
       bar++;
     });
   }
-  return { bpm: 128, spb, len: BARS * spb, score, swing: 0, human: false };
+  return { bpm: 168, spb, len: BARS * spb, score, swing: 0, human: false };
 }
 
 function buildTense() {
@@ -806,7 +821,7 @@ function buildTense() {
   form.forEach(([chords, mel], fi) => {
     chords.forEach((c, i) => {
       for (let s = 0; s < 16; s += 2) add(bar, s, bassChip, s === 6 || s === 14 ? c.bass + 12 : c.bass, 1.5, s % 4 === 0 ? 0.95 : 0.7);
-      for (const s of [0, 3, 6, 8, 11, 14]) for (const m of c.ch) add(bar, s, stab, m, 1.5, s % 8 === 0 ? 1 : 0.7);
+      for (const s of [0, 3, 6, 8, 11, 14]) { add(bar, s, chug, c.bass, 1.5, s % 8 === 0 ? 1 : 0.75); for (const m of c.ch) add(bar, s, stab, m, 1.5, s % 8 === 0 ? 0.6 : 0.4); }
       if (fi >= 2) for (const m of c.ch) add(bar, 0, pad, m + 12, 16, 0.6);
       for (const s of [0, 6, 8]) add(bar, s, kick, 0, 1, s === 0 ? 1 : 0.75);
       add(bar, 4, snare, 0, 1, 0.75); add(bar, 12, snare, 0, 1, 0.8);
@@ -851,7 +866,7 @@ function startTrack(name) {
   const track = getTrack(name);
   const now = ac.currentTime;
   const g = ac.createGain();
-  g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(1, now + 1.0);
+  g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(track.gain || 1, now + 1.0);
   let tail = null;
   if (track.lp) { tail = ac.createBiquadFilter(); tail.type = 'lowpass'; tail.frequency.value = track.lp; g.connect(tail); tail.connect(musicBus); }
   else g.connect(musicBus);
@@ -987,6 +1002,7 @@ export const audio = {
     const g = oc.createGain(); g.connect(oc.destination);
     if (name.startsWith('music:')) {
       const tr = getTrack(name.slice(6)), sd = 60 / tr.bpm / 4;
+      g.gain.value = tr.gain || 1;
       for (let s = 0, t = 0.01; t < seconds; s++, t += sd) for (const e of tr.score[s % tr.len]) e.i(oc, g, t, e.m, e.d * sd, e.v);
     } else {
       const fn = SFX[name];

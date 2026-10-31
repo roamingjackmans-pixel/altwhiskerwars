@@ -11,7 +11,7 @@ import { detectServer, cleanCode } from './net.js';
 import { heroPortraitURL, catPreviewURL, buildingPreviewURL } from './art.js';
 import { normalizeObstacles } from '../shared/nav.js';
 import { maskSnap } from '../shared/game.js';
-import { initFriends, presence, friends, addFriend, removeFriend, isFriend, myFriendCode, fmtFriendCode, cleanFriendCode, onFriends, setBusyCheck, recentPlayers, noteRecent, beReachable } from './friends.js';
+import { initFriends, presence, friends, addFriend, removeFriend, isFriend, myFriendCode, fmtFriendCode, cleanFriendCode, onFriends, setBusyCheck, recentPlayers, noteRecent, beReachable, friendRequests, acceptRequest, ignoreRequest, isPending } from './friends.js';
 import { isPhone, applyDeviceClass, enterFullscreen, exitFullscreen, keepAwake, deviceSummary, desktopSiteMode } from './device.js';
 import { BUILD, isDev, versionLabel, fetchLatest, isNewer, reloadTo } from './update.js';
 import { Tutorial, TUTORIAL_MAP } from './tutorial.js';
@@ -20,6 +20,7 @@ import { isInstalled, promptInstall, installSteps, onInstallChange } from './ins
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = n => Number(n).toLocaleString('en-US');
 const safe = (fn, ...a) => { try { return fn(...a); } catch (e) { console.warn(e); return ''; } };
 const portrait = (id, s = 128) => safe(heroPortraitURL, id, s);
 const catImg = (fur, hat, s = 96, o = 0) => safe(catPreviewURL, fur, hat, s, o);
@@ -69,14 +70,19 @@ export function initUI() {
     if (el && el._inv === inv) { el.remove(); if (inv.withdrawn) toast(`${esc(inv.name)} cancelled the invite`); }
   });
   onFriends('request', ({ code, name }) => {
+    if (match) return;   // no pop-ups mid-battle: it waits in Friends
+    document.querySelectorAll('.invite-pop.request').forEach(e => e.remove());
     const t = document.createElement('div');
     t.className = 'invite-pop request';
-    t.innerHTML = `<div class="ip-t">😺 <b>${esc(name)}</b> added you as a friend</div><div class="ip-b"><button class="btn small primary yes">➕ Add back</button><button class="btn small no">Not now</button></div>`;
+    t.innerHTML = `<div class="ip-t">📨 <b>${esc(name)}</b> sent you a friend request</div><div class="ip-b"><button class="btn small primary yes">➕ Add back</button><button class="btn small no">Later</button></div>`;
     document.body.appendChild(t);
-    t.querySelector('.yes').onclick = () => { addFriend(code, name); toast(`😺 ${esc(name)} is now your friend!`, 'good'); t.remove(); };
-    t.querySelector('.no').onclick = () => t.remove();
+    t.querySelector('.yes').onclick = () => { acceptRequest(code); toast(`😺 <b>${esc(name)}</b> is now your friend!`, 'good'); t.remove(); };
+    t.querySelector('.no').onclick = () => { t.remove(); toast('It waits for you in <b>Friends</b>.'); };
     setTimeout(() => t.remove(), 30000);
+    refreshFriendBadges();
   });
+  onFriends('accepted', ({ name }) => { if (!match) toast(`🤘 <b>${esc(name)}</b> added you back. You're friends now!`, 'good'); });
+  onFriends('change', refreshFriendBadges);
   initFriends();
 }
 
@@ -141,6 +147,7 @@ export const isBusy = () => !!(match || session);
 export const currentScreen = () => (current ? current.name : '');
 let pendingUpdate = null;
 let warnedDesktopSite = false;
+let toldRequests = false;
 /** a newer build exists: show a banner in the menus (never during a battle) */
 export function offerUpdate(l) { pendingUpdate = l; renderUpdateBanner(); }
 function renderUpdateBanner() {
@@ -370,18 +377,19 @@ SCREENS.home = () => {
       <div class="logo">
         <div class="logo-ears"><span></span><span></span></div>
         <div class="logo-text"><span class="w0">Alt</span><span class="w1">Whisker</span><span class="w2">Wars</span></div>
-        <div class="logo-sub">Hidden armies · hero skills · Purr Power</div>
+        <div class="logo-sub">Stray gangs · street magic · Purr Power</div>
       </div>
       <div class="home-main">
         ${p.tutorialDone ? '' : `<button class="btn huge gold tut-start pulse">🎓 Play the Tutorial<small>Learn to attack, switch buildings and use Purr Power · +${COINS.tutorial} 🐟</small></button>`}
-        <button class="btn huge primary ${p.tutorialDone ? 'pulse' : ''}" data-go="friend">⚔️ Battle a Friend<small>Real-time online PvP · share a room code</small></button>
+        <button class="btn huge primary ${p.tutorialDone ? 'pulse' : ''}" data-go="friend">⚔️ Battle a Friend<small>Real-time turf war online · share a room code</small></button>
         <div class="home-grid">
           <button class="btn tile" data-go="campaign"><span class="ti">🗺️</span>Campaign<small>${Object.keys(p.campaign).length}/${CAMPAIGN.length} cleared</small></button>
-          <button class="btn tile" data-go="practice"><span class="ti">🤖</span>Practice<small>vs computer cats</small></button>
+          <button class="btn tile" data-go="practice"><span class="ti">🤖</span>Practice<small>vs robot strays</small></button>
           <button class="btn tile" data-go="heroes"><span class="ti">😺</span>Heroes<small>${p.heroes.length}/${HEROES.length} unlocked · upgrade skills</small></button>
-          <button class="btn tile" data-go="shop"><span class="ti">🛍️</span>Cat Shop<small>furs & hats</small></button>
+          <button class="btn tile" data-go="shop"><span class="ti">🛍️</span>Cat Shop<small>furs, hats & weird stuff</small></button>
           <button class="btn tile" data-go="profile"><span class="ti">🏆</span>Profile<small>stats & trophies</small></button>
-          <button class="btn tile" data-go="howto"><span class="ti">📖</span>How to Play<small>guide + tutorial</small></button>
+          <button class="btn tile" data-go="friends"><span class="ti">👥</span>Friends<small>requests & invites</small><span class="fr-badge" ${friendRequests().length ? '' : 'hidden'}>${friendRequests().length}</span></button>
+          <button class="btn tile wide" data-go="howto"><span class="ti">📖</span>How to Play<small>guide + tutorial</small></button>
         </div>
       </div>
       <div class="home-me card clickable" data-go="profile">
@@ -400,6 +408,11 @@ SCREENS.home = () => {
   }
   if (!p.seenTutorial) setTimeout(() => welcome(), 400);
   else if (P.dailyAvailable()) setTimeout(() => dailyGift(), 500);
+  else if (friendRequests().length && !toldRequests) {
+    toldRequests = true;
+    const n = friendRequests().length;
+    setTimeout(() => toast(`📨 You have <b>${n}</b> friend request${n > 1 ? 's' : ''}. Open <b>Friends</b> to answer.`, 'good'), 700);
+  }
 };
 
 function welcome() {
@@ -407,14 +420,14 @@ function welcome() {
   const m = modal(`<div class="welcome">
     <img class="welcome-cat" src="${catImg('ginger', 'crown', 160, 0)}" alt="">
     <h2>Welcome to Alt Whisker Wars!</h2>
-    <p>Lead an army of adorable cats, capture cottages, cast silly spells and conquer your friends.</p>
-    <label>What should we call you, commander?</label>
+    <p>Lead a gang of misfit alley cats, take over the block, sling weird spells and wreck your friends' turf.</p>
+    <label>What's your street name, boss?</label>
     <div class="row"><input class="name-in" maxlength="16" value="${esc(p.name)}"><button class="btn small dice silent" title="Random name">🎲</button></div>
     <button class="btn primary big go-tut">🎓 Start the tutorial</button>
     <button class="btn small skip-tut">I know how to play, skip it</button>
     <p class="muted small">The tutorial is a real battle that shows you how to attack, switch buildings and use Purr Power. +${COINS.tutorial} 🐟 when you finish.</p>
   </div>`, { close: false });
-  const names = ['Mochi', 'Noodle', 'Biscuit', 'Pickles', 'Tofu', 'Meowzart', 'Purrlock', 'Socks', 'Butterbean', 'Clawdia', 'Catniss', 'Sushi', 'Waffles', 'Pudding'];
+  const names = ['Spike', 'Ziggy', 'Razor', 'Jinx', 'Vex', 'Riot', 'Static', 'Glitch', 'Fang', 'Hex', 'Neon', 'Grimm', 'Vandal', 'Rebel', 'Moshpit', 'Sk8r'];
   $('.dice', m.el).onclick = () => { $('.name-in', m.el).value = names[Math.floor(Math.random() * names.length)] + Math.floor(Math.random() * 90 + 10); audio.play('mew'); };
   const done = tut => {
     P.setName($('.name-in', m.el).value);
@@ -455,7 +468,7 @@ function playTutorial() {
   t.start();
 }
 function dailyGift() {
-  const m = modal(`<div class="daily"><div class="gift">🎁</div><h2>Daily Gift!</h2><p>The Cat Council sends you a basket of fish.</p>
+  const m = modal(`<div class="daily"><div class="gift">🗑️</div><h2>Dumpster Loot!</h2><p>Someone left a crate of fish behind the dumpster. Finders keepers.</p>
     <button class="btn primary big claim">Claim <span class="fish">🐟</span> ${COINS.dailyGift}</button></div>`, { close: false });
   $('.claim', m.el).onclick = () => { const n = P.claimDaily(); audio.play('coins'); toast(`+${n} 🐟 fish coins!`, 'good'); m.close(); };
 }
@@ -463,27 +476,18 @@ function dailyGift() {
 // ---------- Friend (create / join)
 SCREENS.friend = (params = {}) => {
   screens.innerHTML = `${topbar(true, 'Battle a Friend')}
-    <div class="friend ${friends().length ? 'has-friends' : ''}">
-      <div class="card panel">
-        <div class="big-emoji">🏠</div>
-        <h2>Create a room</h2>
-        <p>Get a 5-number code (and a link) to send to your friend.</p>
-        <button class="btn primary big create">Create Room</button>
+    <div class="friend ${friends().length || friendRequests().length ? 'has-friends' : ''}">
+      <div class="card panel room-box create-box">
+        <div class="rb-icon">🏠</div>
+        <div class="rb-txt"><h2>Create a room</h2><p>Get a 5-number code (and a link) to send a friend.</p></div>
+        <button class="btn primary big create">Create</button>
       </div>
-      <div class="card panel">
-        <div class="big-emoji">🔑</div>
-        <h2>Join a room</h2>
-        <p>Type the code your friend sent you.</p>
-        <input class="code-in" maxlength="6" placeholder="12345" inputmode="numeric" autocomplete="off" spellcheck="false" value="${esc(params.code || '')}">
-        <button class="btn primary big join">Join Room</button>
+      <div class="card panel room-box join-box">
+        <div class="rb-icon">🔑</div>
+        <div class="rb-txt"><h2>Join a room</h2><p>Type the code a friend sent you.</p></div>
+        <div class="rb-join"><input class="code-in" maxlength="6" placeholder="12345" inputmode="numeric" autocomplete="off" spellcheck="false" value="${esc(params.code || '')}"><button class="btn primary big join">Join</button></div>
       </div>
-      <div class="card panel friends-panel">
-        <h2>😺 Friends</h2>
-        <div class="fp-me">Your friend code <b class="fp-code">${fmtFriendCode(myFriendCode())}</b> <button class="btn small copy-fc">📋 Copy</button></div>
-        <div class="fp-add"><input class="fc-in" maxlength="9" placeholder="Friend's code" inputmode="numeric" autocomplete="off"><button class="btn small primary add-fc">➕ Add</button></div>
-        <div class="fp-list"></div>
-        <p class="muted small">Friends with Alt Whisker Wars open show up as online. Tap <b>Invite</b> and they can jump straight into your room. You can also add the player you just battled from the lobby.</p>
-      </div>
+      <div class="card panel friends-panel"></div>
     </div>
     <div class="net-mode muted small center"></div>`;
   wireGo();
@@ -494,7 +498,7 @@ SCREENS.friend = (params = {}) => {
   createBtn.onclick = async () => {
     createBtn.disabled = true; createBtn.textContent = 'Creating...';
     try { endSession(); session = await OnlineSession.host(); go('lobby'); }
-    catch (e) { console.error(e); toast('😿 Could not create a room: ' + esc(e.message || e), 'warn'); createBtn.disabled = false; createBtn.textContent = 'Create Room'; }
+    catch (e) { console.error(e); toast('😿 Could not create a room: ' + esc(e.message || e), 'warn'); createBtn.disabled = false; createBtn.textContent = 'Create'; }
   };
   joinBtn.onclick = async () => {
     const code = cleanCode(input.value);
@@ -504,50 +508,118 @@ SCREENS.friend = (params = {}) => {
     catch (e) {
       console.error(e);
       toast(e.code === 'notfound' ? `😿 No room called <b>${code}</b>. Check the code with your friend.` : '😿 ' + esc(e.message || 'Could not join'), 'warn');
-      joinBtn.disabled = false; joinBtn.textContent = 'Join Room';
+      joinBtn.disabled = false; joinBtn.textContent = 'Join';
     }
   };
   if (params.code && params.auto) setTimeout(() => joinBtn.click(), 300);
+  return friendsBlock($('.friends-panel'), { invite: true });
+};
 
-  // ---- friends
-  const list = $('.fp-list');
+// ---------- Friends (requests, your friends, people you played)
+SCREENS.friends = () => {
+  screens.innerHTML = `${topbar(true, 'Friends')}
+    <div class="friends-page">
+      <div class="card panel friends-panel"></div>
+      <button class="btn primary big" data-go="friend">⚔️ Battle a Friend</button>
+    </div>`;
+  wireGo();
+  return friendsBlock($('.friends-panel'), { invite: true, recent: true, full: true });
+};
+
+const ago = t => {
+  const s = Math.max(0, (Date.now() - (t || 0)) / 1000);
+  return s < 90 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : s < 86400 ? Math.round(s / 3600) + 'h ago' : Math.round(s / 86400) + 'd ago';
+};
+/** home tile badge: friend requests waiting for an answer */
+function refreshFriendBadges() {
+  const n = friendRequests().length;
+  $$('.fr-badge').forEach(b => { b.textContent = n; b.hidden = !n; });
+}
+
+/**
+ * Your friend code, adding a friend, friend requests waiting for you, and your friends (online status, invite,
+ * remove). Used by Battle a Friend and the Friends section. Returns { leave }.
+ */
+function friendsBlock(root, { invite = false, recent = false, full = false } = {}) {
+  root.innerHTML = `<h2>😺 Friends</h2>
+    <div class="fp-me">Your friend code <b class="fp-code">${fmtFriendCode(myFriendCode())}</b> <button class="btn small copy-fc">📋 Copy</button></div>
+    <div class="fp-add"><input class="fc-in" maxlength="9" placeholder="Friend's code" inputmode="numeric" autocomplete="off"><button class="btn small primary add-fc">📨 Send request</button></div>
+    <div class="fr-reqs"></div>
+    <div class="fp-list"></div>
+    <div class="fr-recent"></div>
+    <p class="muted small fr-help">${full
+      ? 'Send a request with someone\'s friend code. If they\'re offline, it waits for them and they can add you back next time they play. Friends who have the game open show up as online: tap <b>Invite</b> and they can jump straight into your room.'
+      : 'Requests wait for friends who are offline. Friends with the game open show up as online: tap <b>Invite</b> and they jump straight into your room.'}</p>`;
+  const reqBox = $('.fr-reqs', root), list = $('.fp-list', root), recentBox = $('.fr-recent', root);
   const STATE = { online: ['on', 'Online'], busy: ['busy', 'Playing'], offline: ['off', 'Offline'], checking: ['chk', 'Checking…'] };
-  const drawFriends = () => {
+  const draw = () => {
     if (!list.isConnected) return;
+    // friend requests: people who added you
+    const reqs = friendRequests();
+    reqBox.innerHTML = reqs.length ? `<h3 class="fr-h">📨 Friend requests <span class="fr-count">${reqs.length}</span></h3>` + reqs.map(r => `
+      <div class="fp-row req" data-code="${r.code}"><span class="fr-ava">📨</span>
+        <div class="fp-who"><b>${esc(r.name)}</b><span class="muted small">${ago(r.at)} · ${fmtFriendCode(r.code)}</span></div>
+        <button class="btn small primary acc">➕ Add back</button>
+        <button class="btn small fp-x ign silent" title="Ignore" aria-label="Ignore ${esc(r.name)}">✕</button></div>`).join('') : '';
+    // your friends
     const fs = friends();
-    if (!fs.length) { list.innerHTML = '<div class="fp-empty muted">No friends yet. Swap friend codes, or add someone you just battled.</div>'; return; }
-    const rank = c => ({ online: 0, busy: 1, checking: 2 }[(presence.status.get(c) || {}).state] ?? 3);
-    list.innerHTML = fs.slice().sort((a, b) => rank(a.code) - rank(b.code) || a.name.localeCompare(b.name)).map(f => {
-      const st = (presence.status.get(f.code) || { state: 'checking' }).state, [cls, label] = STATE[st] || STATE.offline;
-      return `<div class="fp-row ${cls}" data-code="${f.code}"><span class="fp-dot"></span>
-        <div class="fp-who"><b>${esc(f.name)}</b><span class="muted small">${label} · ${fmtFriendCode(f.code)}</span></div>
-        <button class="btn small primary inv" ${st === 'online' ? '' : 'disabled'}>⚔️ Invite</button>
-        <button class="btn small fp-x silent" title="Remove friend" aria-label="Remove ${esc(f.name)}">✕</button></div>`;
-    }).join('');
-    $$('.fp-row .inv', list).forEach(b => b.onclick = () => inviteFriend(b.closest('.fp-row').dataset.code, b));
-    $$('.fp-row .fp-x', list).forEach(b => b.onclick = () => {
+    if (!fs.length) list.innerHTML = '<div class="fp-empty muted">No friends yet. Swap friend codes, or add someone you just battled.</div>';
+    else {
+      const rank = c => ({ online: 0, busy: 1, checking: 2 }[(presence.status.get(c) || {}).state] ?? 3);
+      list.innerHTML = (reqs.length ? `<h3 class="fr-h">😺 Your friends <span class="fr-count">${fs.length}</span></h3>` : '') + fs.slice().sort((a, b) => rank(a.code) - rank(b.code) || a.name.localeCompare(b.name)).map(f => {
+        const st = (presence.status.get(f.code) || { state: 'checking' }).state, [cls, label] = STATE[st] || STATE.offline;
+        const wait = isPending(f.code) ? ' · <span class="fr-pend">request sent</span>' : '';
+        return `<div class="fp-row ${cls}" data-code="${f.code}"><span class="fp-dot"></span>
+          <div class="fp-who"><b>${esc(f.name)}</b><span class="muted small">${label}${wait} · ${fmtFriendCode(f.code)}</span></div>
+          ${invite ? `<button class="btn small primary inv" ${st === 'online' ? '' : 'disabled'}>⚔️ Invite</button>` : ''}
+          <button class="btn small fp-x rm silent" title="Remove friend" aria-label="Remove ${esc(f.name)}">✕</button></div>`;
+      }).join('');
+    }
+    // people you played online recently (not friends yet)
+    const rp = recent ? recentPlayers().filter(r => !reqs.some(q => q.code === r.code)) : [];
+    recentBox.innerHTML = rp.length ? `<h3 class="fr-h">🎮 Played recently</h3>` + rp.map(r => `
+      <div class="fp-row recent" data-code="${r.code}"><span class="fr-ava">🎮</span>
+        <div class="fp-who"><b>${esc(r.name)}</b><span class="muted small">${ago(r.at)} · ${fmtFriendCode(r.code)}</span></div>
+        <button class="btn small add-rp">📨 Add</button></div>`).join('') : '';
+    const codeOf = b => b.closest('.fp-row').dataset.code;
+    $$('.acc', reqBox).forEach(b => b.onclick = () => {
+      const c = codeOf(b), n = (friendRequests().find(r => r.code === c) || {}).name || 'Your friend';
+      const r = acceptRequest(c);
+      toast(r.ok ? `😺 <b>${esc(n)}</b> is now your friend!` : r.msg, r.ok ? 'good' : 'warn');
+      audio.play(r.ok ? 'meow' : 'error');
+    });
+    $$('.ign', reqBox).forEach(b => b.onclick = () => {
+      if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Ignore?'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = '✕'; } }, 2500); return; }
+      ignoreRequest(codeOf(b));
+    });
+    $$('.inv', list).forEach(b => b.onclick = () => inviteFriend(codeOf(b), b));
+    $$('.rm', list).forEach(b => b.onclick = () => {
       if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Remove?'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = '✕'; } }, 2500); return; }
-      removeFriend(b.closest('.fp-row').dataset.code);
+      removeFriend(codeOf(b));
+    });
+    $$('.add-rp', recentBox).forEach(b => b.onclick = () => {
+      const c = codeOf(b), n = (recentPlayers().find(r => r.code === c) || {}).name, r = addFriend(c, n);
+      toast(r.ok ? (r.accepted ? `😺 <b>${esc(n)}</b> is now your friend!` : `📨 Friend request sent to <b>${esc(n)}</b>`) : r.msg, r.ok ? 'good' : 'warn');
     });
   };
-  const fcIn = $('.fc-in');
+  const fcIn = $('.fc-in', root);
   fcIn.addEventListener('input', () => { fcIn.value = fmtFriendCode(fcIn.value); });
   const add = () => {
     const r = addFriend(cleanFriendCode(fcIn.value));
     if (!r.ok) { toast(r.msg, 'warn'); audio.play('error'); return; }
-    toast(r.already ? 'Already your friend' : '😺 Friend added! Checking if they are online…', 'good');
+    toast(r.already ? 'Already your friend' : r.accepted ? `😺 <b>${esc(r.friend.name)}</b> is now your friend!` : '📨 Friend request sent! If they\'re offline it waits for them.', 'good');
     fcIn.value = '';
-    drawFriends();
+    draw();
   };
-  $('.add-fc').onclick = add;
+  $('.add-fc', root).onclick = add;
   fcIn.addEventListener('keydown', ev => { if (ev.key === 'Enter') add(); });
-  $('.copy-fc').onclick = () => navigator.clipboard?.writeText(myFriendCode()).then(() => toast('📋 Friend code copied!', 'good'), () => toast(myFriendCode()));
-  const offChange = onFriends('change', drawFriends);
+  $('.copy-fc', root).onclick = () => navigator.clipboard?.writeText(myFriendCode()).then(() => toast('📋 Friend code copied!', 'good'), () => toast(myFriendCode()));
+  const offChange = onFriends('change', draw);
   beReachable();
   const stopWatch = presence.watch();
-  drawFriends();
+  draw();
   return { leave: () => { offChange(); stopWatch(); } };
-};
+}
 
 /** Make a room and invite a friend into it. */
 async function inviteFriend(code, btn) {
@@ -720,7 +792,8 @@ SCREENS.lobby = () => {
       <div class="pl-info"><div class="pl-name">${esc(pl.name)} <span class="pill tiny">Lv ${pl.level}</span></div><div class="pl-hero-n">${h.name}</div>
       <div class="pl-cat"><img src="${catImg(pl.fur, pl.hat, 64, i)}" alt=""></div></div>
       <div class="pl-ready ${ready ? 'on' : ''}">${ready ? '✔ READY' : i === 0 && S.isHost ? 'HOST' : 'not ready'}</div>
-      ${i !== S.me && /^\d{8}$/.test(pl.fc || '') ? (isFriend(pl.fc) ? '<div class="pl-friend">😺 Friend</div>' : '<button class="btn small pl-add">➕ Add friend</button>') : ''}
+      ${i !== S.me && /^\d{8}$/.test(pl.fc || '') ? (isFriend(pl.fc) ? `<div class="pl-friend">${isPending(pl.fc) ? '📨 Request sent' : '😺 Friend'}</div>` : '<button class="btn small pl-add">➕ Add friend</button>') : ''}
+      ${seatSkills(h, pl.skills, S.lobby.upgrades === false)}
       <div class="lemote-pop"></div>
     </div>`;
   };
@@ -741,7 +814,7 @@ SCREENS.lobby = () => {
     $$('.lobby-seats .pl-add').forEach(btn => btn.onclick = () => {
       const o = S.lobby.players[+btn.closest('[data-seat]').dataset.seat];
       const r = addFriend(o.fc, o.name);
-      toast(r.ok ? `😺 <b>${esc(o.name)}</b> is now your friend. Invite them any time from Battle a Friend!` : r.msg, r.ok ? 'good' : 'warn');
+      toast(r.ok ? (r.accepted ? `😺 <b>${esc(o.name)}</b> is now your friend. Invite them any time from Battle a Friend!` : `📨 Friend request sent to <b>${esc(o.name)}</b>. Invite them any time from Battle a Friend!`) : r.msg, r.ok ? 'good' : 'warn');
       render();
     });
     $$('.size-btn').forEach(b => b.classList.toggle('on', +b.dataset.n === size));
@@ -789,6 +862,14 @@ SCREENS.lobby = () => {
   render();
   return { leave: () => { offs.forEach(f => f()); offFriends(); if (stopWatch) stopWatch(); inviteChanged = () => { }; } };
 };
+
+/** A lobby seat's 4 skills at the levels that player will battle with (all level 1 when upgrades are off). */
+function seatSkills(h, levels, even) {
+  return `<div class="pl-skills">${h.spells.map(s0 => {
+    const lv = even ? 1 : Math.max(1, Math.min(SKILL_MAX, ((levels || {})[s0.id] | 0) || 1)), s = skillAt(s0, lv);
+    return `<div class="pl-sk"><span class="pl-ski">${s.icon}</span><div class="pl-skb"><div class="pl-skh"><b>${s.name}</b><span class="pl-lv">Lv ${lv}</span><span class="pl-skm">🌿${s.cost} · ⏱${s.cd}s</span></div><div class="pl-skd">${s.text}</div></div></div>`;
+  }).join('')}</div>`;
+}
 
 function startOnline() {
   const S = session;
@@ -1044,7 +1125,7 @@ SCREENS.results = ({ res, opts, reward }) => {
   const isCampaign = opts.mode === 'campaign';
   const nextLevel = isCampaign ? CAMPAIGN.find(l => l.id === opts.level.id + 1) : null;
   screens.innerHTML = `<div class="results ${res.win ? 'win' : res.draw ? 'draw' : 'lose'}">
-    <div class="res-banner">${res.win ? '🏆 VICTORY!' : res.draw ? '🤝 DRAW' : '😿 DEFEAT'}</div>
+    <div class="res-banner">${res.win ? '🤘 VICTORY!' : res.draw ? '🤝 DRAW' : '💀 DEFEAT'}</div>
     <div class="res-sub">${res.why === 'out' ? 'You were knocked out' : res.why === 'surrender' ? (res.win ? (many ? 'The last of your rivals surrendered' : 'Your opponent surrendered') : 'You surrendered') : res.why === 'disconnect' ? 'Opponent disconnected' : res.why === 'time' ? 'Time ran out: the biggest army wins' : res.win ? 'You conquered every building!' : many && res.winner >= 0 ? `${esc(info.players[res.winner].name)} took the kingdom` : 'Your clowder has been scattered...'}
       · ${Math.floor(res.time / 60)}:${String(res.time % 60).padStart(2, '0')}</div>
     ${isCampaign && res.win ? `<div class="res-stars">${[1, 2, 3].map(k => `<span class="${k <= reward.stars ? 'on' : ''}">★</span>`).join('')}</div>` : ''}
@@ -1181,7 +1262,7 @@ SCREENS.campaign = () => {
   const stars = CAMPAIGN.reduce((a, l) => a + (p.campaign[l.id] || 0), 0);
   screens.innerHTML = `${topbar(true, 'Campaign')}
     <div class="campaign">
-      <div class="camp-head card">🗺️ <b>The Great Cat Kingdom</b> — defeat all ${CAMPAIGN.length} rival heroes to become Top Cat. <span class="pill">★ ${stars}/${CAMPAIGN.length * 3}</span></div>
+      <div class="camp-head card">🗺️ <b>Turf War</b>: beat all ${CAMPAIGN.length} rival heroes and the whole city is yours. <span class="pill">★ ${stars}/${CAMPAIGN.length * 3}</span></div>
       <div class="camp-path">${CAMPAIGN.map((l, k) => {
         const done = p.campaign[l.id] || 0, locked = l.id > unlockedUpTo;
         const e = heroById(l.enemy);
@@ -1249,14 +1330,14 @@ SCREENS.shop = (params = {}) => {
   const items = tab === 'fur' ? FURS : HATS;
   screens.innerHTML = `${topbar(true, 'Cat Shop')}
     <div class="shop">
-      <div class="shop-preview card"><img class="shop-cat" src="${catImg(p.equip.fur, p.equip.hat, 200, 0)}"><div><b>Your army looks like this!</b><div class="muted small">Every cat you send into battle wears your fur & hat.</div></div></div>
+      <div class="shop-preview card"><img class="shop-cat" src="${catImg(p.equip.fur, p.equip.hat, 200, 0)}"><div><b>Your gang looks like this.</b><div class="muted small">Every cat you send into battle wears your fur & hat. The weird stuff costs more.</div></div></div>
       <div class="seg tabs"><button class="btn ${tab === 'fur' ? 'on' : ''}" data-tab="fur">🎨 Furs</button><button class="btn ${tab === 'hat' ? 'on' : ''}" data-tab="hat">🎩 Hats</button></div>
       <div class="shop-grid">${items.map(it => {
         const own = P.owns(tab, it.id), eq = p.equip[tab] === it.id;
         const img = tab === 'fur' ? catImg(it.id, 'none', 120, 0) : catImg(p.equip.fur, it.id, 120, 0);
         return `<div class="shop-item card clickable ${eq ? 'sel' : ''}" data-id="${it.id}">
           <img src="${img}" alt=""><div class="si-name">${it.name}</div>
-          <div class="si-price">${eq ? '✔ Equipped' : own ? 'Owned · tap to wear' : `<span class="fish">🐟</span> ${it.cost}`}</div></div>`;
+          <div class="si-price">${eq ? '✔ Equipped' : own ? 'Owned · tap to wear' : `<span class="fish">🐟</span> ${num(it.cost)}`}</div></div>`;
       }).join('')}</div>
     </div>`;
   wireGo();
@@ -1265,9 +1346,9 @@ SCREENS.shop = (params = {}) => {
     const id = el.dataset.id;
     if (P.owns(tab, id)) { P.equip(tab, id); audio.play('purr'); go('shop', { tab }); return; }
     const it = items.find(x => x.id === id);
-    if (p.coins < it.cost) { audio.play('error'); toast(`Need ${it.cost - p.coins} more 🐟 — win battles to earn more!`, 'warn'); return; }
+    if (p.coins < it.cost) { audio.play('error'); toast(`Need ${num(it.cost - p.coins)} more 🐟. Win battles to earn more!`, 'warn'); return; }
     const m = modal(`<div class="center"><img src="${tab === 'fur' ? catImg(id, p.equip.hat, 160, 0) : catImg(p.equip.fur, id, 160, 0)}"><h2>${it.name}</h2>
-      <button class="btn primary big buy">Buy for <span class="fish">🐟</span> ${it.cost}</button></div>`);
+      <button class="btn primary big buy">Buy for <span class="fish">🐟</span> ${num(it.cost)}</button></div>`);
     $('.buy', m.el).onclick = () => {
       const r = P.buy(tab, id);
       if (!r.ok) { toast(r.msg, 'warn'); return; }
@@ -1300,7 +1381,7 @@ SCREENS.profile = () => {
       <div class="card panel"><h3>🏆 Achievements (${Object.keys(p.ach).length}/${ACHIEVEMENTS.length})</h3>
         <div class="ach-grid">${ACHIEVEMENTS.map(a => `<div class="ach ${p.ach[a.id] ? 'got' : ''}"><div class="ach-i">${p.ach[a.id] ? '🏆' : '🔒'}</div><div><b>${a.name}</b><div class="small">${a.desc}</div></div><div class="ach-r">+${a.reward}🐟</div></div>`).join('')}</div></div>
       <div class="card panel"><h3>📜 Recent battles</h3>
-        ${p.history.length ? `<div class="hist">${p.history.map(h => `<div class="hist-row ${h.win ? 'w' : h.draw ? 'd' : 'l'}"><span>${h.win ? 'WIN' : h.draw ? 'DRAW' : 'LOSS'}</span><span>${h.mode}</span><span>vs ${esc(h.opp)}</span><span>${heroById(h.hero)?.name || ''}</span><span>${esc(h.map || '')}</span></div>`).join('')}</div>` : '<p class="muted">No battles yet. Go get \'em!</p>'}
+        ${p.history.length ? `<div class="hist">${p.history.map(h => `<div class="hist-row ${h.win ? 'w' : h.draw ? 'd' : 'l'}"><span>${h.win ? 'WIN' : h.draw ? 'DRAW' : 'LOSS'}</span><span>${h.mode}</span><span>vs ${esc(h.opp)}</span><span>${heroById(h.hero)?.name || ''}</span><span>${esc(h.map || '')}</span></div>`).join('')}</div>` : '<p class="muted">No battles yet. Go start some trouble!</p>'}
       </div>
     </div>`;
   wireGo();
@@ -1364,7 +1445,7 @@ SCREENS.settings = () => {
         <option value="phone" ${s.layout === 'phone' ? 'selected' : ''}>Phone</option>
         <option value="desktop" ${s.layout === 'desktop' ? 'selected' : ''}>Computer / tablet</option></select></label>
       <label>📳 Vibration on phones <input type="checkbox" class="c-vib" ${s.vibrate !== false ? 'checked' : ''}></label>
-      <label>⛶ Full screen battles on phones <small class="muted">(hides the phone's Home / Back buttons until the battle ends)</small> <input type="checkbox" class="c-fs" ${s.fullscreen !== false ? 'checked' : ''}></label>
+      <label>⛶ Full screen battles on phones <small class="muted">(hides the phone's Home / Back buttons until the battle ends)</small> <input type="checkbox" class="c-fs" ${s.fullscreen ? 'checked' : ''}></label>
       <div class="net-info muted small"></div>
       <div class="muted small">${versionBadge()}</div>
       <hr>

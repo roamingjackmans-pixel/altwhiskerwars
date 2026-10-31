@@ -1,7 +1,7 @@
 /* Whisker Wars — phone layout.
    The in-match HUD gets .phone plus .portrait or .landscape; <html> gets .phone for the menus. */
 
-.hud.phone { --pbg: rgba(30, 18, 44, .9); }
+.hud.phone { --pbg: rgba(12, 9, 18, .9); }
 .hud.phone button { touch-action: manipulation; -webkit-touch-callout: none; }
 
 /* ---------- top bar ---------- */
@@ -9,7 +9,7 @@
   position: absolute; top: 0; left: 0; right: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center; gap: 6px;
   padding: calc(env(safe-area-inset-top) + 4px) calc(env(safe-area-inset-right) + 6px) 5px calc(env(safe-area-inset-left) + 6px);
-  background: linear-gradient(rgba(30, 18, 44, .92), rgba(30, 18, 44, .7));
+  background: linear-gradient(rgba(12, 9, 18, .92), rgba(12, 9, 18, .7));
   box-shadow: 0 2px 10px rgba(0, 0, 0, .25);
 }
 .hud.phone .pcard { min-width: 0; max-width: 100%; gap: 6px; padding: 2px 8px 2px 2px; border-width: 2px; border-radius: 12px; box-shadow: none; backdrop-filter: none; }
@@ -88,7 +88,7 @@
 .hud.phone.portrait .ph-dock {
   display: flex; flex-direction: column; gap: 6px;
   padding: 7px calc(env(safe-area-inset-right) + 6px) calc(env(safe-area-inset-bottom) + 7px) calc(env(safe-area-inset-left) + 6px);
-  background: linear-gradient(rgba(30, 18, 44, .78), rgba(30, 18, 44, .95) 40%);
+  background: linear-gradient(rgba(12, 9, 18, .78), rgba(12, 9, 18, .95) 40%);
   box-shadow: 0 -2px 12px rgba(0, 0, 0, .25);
 }
 .hud.phone.portrait .ph-row { display: flex; align-items: stretch; gap: 6px; }
@@ -150,17 +150,17 @@
 .hud.phone .bmenu .bm-h .lv { font-size: 10px; }
 .hud.phone .bm-row { display: flex; gap: 5px; }
 .hud.phone .bm-row button {
-  position: relative; width: 44px; height: 46px; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 3px 0 #e2cfb8;
+  position: relative; width: 44px; height: 46px; border: 2px solid var(--line); border-radius: 9px; background: var(--paper); box-shadow: 0 3px 0 #000;
   font-size: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; padding: 0; color: var(--ink);
 }
 .hud.phone .bm-row button span { font-size: 10px; font-weight: 700; color: var(--ink2); margin-top: 2px; }
-.hud.phone .bm-row .bm-up { width: 52px; background: linear-gradient(#8fe0a8, var(--mint)); box-shadow: 0 3px 0 var(--mint-d); color: #fff; font-weight: 700; }
-.hud.phone .bm-row .bm-up span { color: #fff; }
-.hud.phone .bm-row .bm-x { width: 32px; background: #f0e2cf; box-shadow: none; font-size: 14px; margin: 0; }
+.hud.phone .bm-row .bm-up { width: 52px; background: linear-gradient(#d4ff6e, var(--mint)); box-shadow: 0 3px 0 var(--mint-d); color: #0c0a10; font-weight: 700; }
+.hud.phone .bm-row .bm-up span { color: #0c0a10; }
+.hud.phone .bm-row .bm-x { width: 32px; background: var(--cream2); box-shadow: none; font-size: 14px; margin: 0; }
 .hud.phone .bm-row .off { filter: grayscale(.8); opacity: .55; }
-.hud.phone .bm-row .bm-yes { width: 64px; background: linear-gradient(#8fe0a8, var(--mint)); box-shadow: 0 3px 0 var(--mint-d); color: #fff; font-weight: 700; }
-.hud.phone .bm-row .bm-yes span { color: #fff; }
-.hud.phone .bm-row .bm-no { width: 44px; background: #f0e2cf; box-shadow: none; font-size: 16px; }
+.hud.phone .bm-row .bm-yes { width: 64px; background: linear-gradient(#d4ff6e, var(--mint)); box-shadow: 0 3px 0 var(--mint-d); color: #0c0a10; font-weight: 700; }
+.hud.phone .bm-row .bm-yes span { color: #0c0a10; }
+.hud.phone .bm-row .bm-no { width: 44px; background: var(--cream2); box-shadow: none; font-size: 16px; }
 .hud.phone .cd-num { font-size: 120px; }
 .hud.phone .banner-t { font-size: clamp(54px, 16vw, 120px); }
 .hud.phone .banner-s { font-size: 16px; }

@@ -2,7 +2,7 @@
 import { HEROES, FURS, HATS, ACHIEVEMENTS, COINS, AI_LEVELS, CAMPAIGN, LEGACY_CAMPAIGN, HERO_BY_ID, LEGACY_HEROES, SKILL_MAX, skillUpgradeCost } from '../shared/data.js';
 
 const KEY = 'altwhiskerwars.profile.v1';
-const NAMES = ['Whiskerpop', 'Sir Fluff', 'Captain Paws', 'Mochi', 'Noodle', 'Biscuit', 'Pickles', 'Tofu', 'Meowzart', 'Purrlock', 'Socks', 'Butterbean', 'Mittensworth', 'Clawdia', 'Catniss'];
+const NAMES = ['Spike', 'Ziggy', 'Razor', 'Jinx', 'Vex', 'Riot', 'Static', 'Glitch', 'Fang', 'Hex', 'Neon', 'Grimm', 'Vandal', 'Rebel', 'Moshpit'];
 
 function today() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
 
@@ -19,10 +19,10 @@ function fresh() {
     equip: { hero: HEROES[0].id, fur: 'ginger', hat: 'none' },
     stats: { matches: 0, wins: 0, onlineMatches: 0, onlineWins: 0, captures: 0, spells: 0, produced: 0, bestStreak: 0, streak: 0, fastestWin: 0 },
     ach: {},
-    campaign: {}, campaignV: 2,
+    campaign: {}, campaignV: 2, settingsV: 2,
     history: [],
     lastDaily: '', lastFirstWin: '',
-    settings: { sfx: 0.8, music: 0.45, muted: false, fx: 'high', showTips: true, layout: 'auto', vibrate: true, fullscreen: true },
+    settings: { sfx: 0.8, music: 0.45, muted: false, fx: 'high', showTips: true, layout: 'auto', vibrate: true, fullscreen: false },
     seenTutorial: false,
     tutorialDone: false,
     skills: {},
@@ -38,7 +38,7 @@ function load() {
       const p = JSON.parse(raw);
       const base = fresh();
       // (campaignV comes from the save itself: saves from before it existed still need their campaign moved)
-      return migrate({ ...base, ...p, campaignV: p.campaignV || 1, equip: { ...base.equip, ...p.equip }, stats: { ...base.stats, ...p.stats }, settings: { ...base.settings, ...p.settings } });
+      return migrate({ ...base, ...p, campaignV: p.campaignV || 1, settingsV: p.settingsV || 1, equip: { ...base.equip, ...p.equip }, stats: { ...base.stats, ...p.stats }, settings: { ...base.settings, ...p.settings } });
     }
   } catch { /* storage blocked */ }
   return fresh();
@@ -62,6 +62,11 @@ function migrate(p) {
     for (const [lv, stars] of Object.entries(p.campaign || {})) { const n = LEGACY_CAMPAIGN[lv]; if (n) c[n] = Math.max(c[n] || 0, stars); }
     p.campaign = c;
     p.campaignV = 2;
+  }
+  // full screen battles on phones used to be on unless you turned them off; now they start off for everyone
+  if ((p.settingsV || 1) < 2) {
+    p.settings.fullscreen = false;
+    p.settingsV = 2;
   }
   return p;
 }
