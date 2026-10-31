@@ -74,7 +74,8 @@ export class Game {
     this.rules = cfg.rules || {};
     this.players = cfg.players.map((p, i) => {
       const hero = heroById(p.hero) || HEROES[0];
-      const skills = cleanSkills(p.skills);
+      // rules.evenSkills (a lobby option): nobody's upgrades count, every skill is level 1
+      const skills = this.rules.evenSkills ? {} : cleanSkills(p.skills);
       const slots = rollSlots(hero, skills, this.rng);
       return {
         idx: i, name: p.name || ('Player ' + (i + 1)), heroId: hero.id, hero, slots,

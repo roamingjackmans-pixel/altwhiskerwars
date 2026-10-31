@@ -1,6 +1,6 @@
 // Whisker Wars menus & screens.
 import {
-  HEROES, heroById, CLANS, FURS, HATS, MAPS, MAP_BY_ID, THEMES, AI_LEVELS, CAMPAIGN, ACHIEVEMENTS, BUILDINGS, EMOTES,
+  HEROES, heroById, CLANS, FURS, HATS, MAPS, MAP_BY_ID, THEMES, AI_LEVELS, CAMPAIGN, campaignSeed, ACHIEVEMENTS, BUILDINGS, EMOTES,
   randomMap, teamColor, RULES, COINS, PURR, SKILL_MAX, skillAt, skillGain, skillUpgradeCost,
 } from '../shared/data.js';
 import * as P from './profile.js';
@@ -238,7 +238,7 @@ function heroCard(h, { selected, locked, small } = {}) {
  * A hero's page: who they are and every skill at the level you have it. With `upgrades` on (heroes you own),
  * each skill gets a fish button that raises it one level and says what gets better.
  */
-function heroDetail(h, { upgrades = false } = {}) {
+function heroDetail(h, { upgrades = false, base = false } = {}) {
   const c = CLANS[h.clan];
   const tl = { own: 'your building', enemy: 'enemy building', neutral: 'stray building', notown: 'enemy/stray building', owned: 'any player\'s building', any: 'any building', area: 'area', global: 'instant' };
   const p = P.profile();
@@ -253,8 +253,9 @@ function heroDetail(h, { upgrades = false } = {}) {
       </div>
     </div>
     ${h.passive ? `<div class="ability passive"><div class="ab-icon">✦</div><div><b>${h.passive.name}</b> <span class="ab-tag">always on</span><div>${h.passive.desc}</div></div></div>` : ''}
+    ${base ? '<div class="ability scout"><div class="ab-icon">⚖️</div><div class="ab-body"><b>Skill upgrades are off in this room</b><div>Everyone battles with level 1 skills, so nobody gets a head start from upgrades.</div></div></div>' : ''}
     ${h.spells.map((s0, k) => {
-      const lv = P.skillLevel(h.id, s0.id), s = skillAt(s0, lv);
+      const lv = base ? 1 : P.skillLevel(h.id, s0.id), s = skillAt(s0, lv);
       const cost = skillUpgradeCost(lv), gain = cost != null ? skillGain(s0, lv) : [];
       const up = !upgrades ? '' : cost == null ? '<div class="ab-max">★ Max level</div>'
         : `<button class="btn small ab-up ${p.coins >= cost ? 'gold' : 'off'}" data-skill="${s0.id}">⬆ Level ${lv + 1} · <span class="fish">🐟</span> ${cost}</button>
@@ -626,6 +627,7 @@ SCREENS.lobby = () => {
           <div class="lobby-maps"></div>
           <div class="time-row">Time limit: ${[300, 480, 600, 900].map(t => `<button class="btn small time-btn" data-t="${t}" ${S.isHost ? '' : 'disabled'}>${t / 60} min</button>`).join('')}</div>
           <div class="lobby-rules"></div>
+          <div class="lobby-upg"></div>
           <div class="lobby-emotes">${EMOTES.map(e => `<button class="btn small lem" data-e="${e.id}" title="${e.text}">${e.icon}</button>`).join('')}</div>
         </div>
       </div>
@@ -695,10 +697,10 @@ SCREENS.lobby = () => {
   beReachable();
 
   let myHero = p.equip.hero;
-  const drawDetail = () => { $('.lobby-hero-detail').innerHTML = heroDetail(heroById(myHero)); };
+  const drawDetail = () => { $('.lobby-hero-detail').innerHTML = heroDetail(heroById(myHero), { base: S.lobby.upgrades === false }); };
   heroPicker($('.lobby-heroes'), myHero, id => { myHero = id; P.equip('hero', id); S.setPick({ hero: id, skills: P.skillLevels(id) }); if (S.lobby.ready[S.me]) S.setReady(false); drawDetail(); });
   drawDetail();
-  let lastMap = null, lastSize = 0;
+  let lastMap = null, lastSize = 0, lastUpg = true;
   // only maps made for the lobby's number of players
   const drawMaps = () => mapPicker($('.lobby-maps'), S.lobby.map, id => S.setMap(id), { readonly: !S.isHost, players: S.lobby.size || 2 });
   $$('.time-btn').forEach(b => b.onclick = () => S.setTime(+b.dataset.t));
@@ -746,7 +748,14 @@ SCREENS.lobby = () => {
     if (L.map !== lastMap || size !== lastSize) { lastMap = L.map; lastSize = size; drawMaps(); }
     $$('.time-btn').forEach(b => b.classList.toggle('on', +b.dataset.t === L.time));
     $('.lobby-rules').innerHTML = rulesRow(L.rules || {}, !S.isHost);
-    if (S.isHost) $$('.rule-btn').forEach(b => b.onclick = () => S.toggleRule(b.dataset.rule));
+    if (S.isHost) $$('.lobby-rules .rule-btn').forEach(b => b.onclick = () => S.toggleRule(b.dataset.rule));
+    // skill upgrades on (everyone's own levels) or off (everyone at level 1, fair for new players)
+    const upg = L.upgrades !== false, ro = S.isHost ? '' : 'disabled';
+    $('.lobby-upg').innerHTML = `<div class="rules-row"><div class="rules-l">Skill upgrades${S.isHost ? '' : ' <span class="muted small">(host picks)</span>'}:</div>
+      <button class="btn small rule-btn upg-btn ${upg ? 'on' : ''}" data-u="1" ${ro}>⬆️ On<small>Everyone uses the skill levels they bought with fish.</small></button>
+      <button class="btn small rule-btn upg-btn ${upg ? '' : 'on'}" data-u="0" ${ro}>⚖️ Off<small>Everyone's skills are level 1, so new players aren't behind.</small></button></div>`;
+    if (S.isHost) $$('.upg-btn').forEach(b => b.onclick = () => S.setUpgrades(b.dataset.u === '1'));
+    if (upg !== lastUpg) { lastUpg = upg; drawDetail(); }
     const rb = $('.ready-btn'), st = $('.lobby-status');
     const here = S.joined(), readyN = L.ready.slice(1, size).filter(Boolean).length;
     if (S.isHost) {
@@ -785,7 +794,7 @@ function startOnline() {
   const S = session;
   const L = S.lobby;
   const cfg = {
-    map: resolveMap(L.map, L.seed), seed: L.seed, timeLimit: L.time, rules: L.rules || {},
+    map: resolveMap(L.map, L.seed), seed: L.seed, timeLimit: L.time, rules: { ...(L.rules || {}), evenSkills: L.upgrades === false },
     players: L.players.slice(0, L.size || 2).map(pl => ({ name: pl.name, hero: pl.hero, fur: pl.fur, hat: pl.hat, skills: pl.skills })),
   };
   S.markMatch();
@@ -1137,11 +1146,11 @@ SCREENS.practice = () => {
   drawRules();
   $('.start').onclick = () => playPractice();
 };
-/** computer cats get stronger skills on harder settings (and later campaign levels) */
-function aiSkills(heroId, ai, campaignLevel = 0) {
+/** computer cats get stronger skills on harder settings (and the campaign's boss levels) */
+function aiSkills(heroId, ai, boss = false) {
   const h = heroById(heroId);
   const base = { easy: 1, normal: 2, hard: 3, insane: 4 }[ai] || 1;
-  const lv = Math.min(SKILL_MAX, base + (campaignLevel >= 11 ? 1 : 0));
+  const lv = Math.min(SKILL_MAX, base + (boss ? 1 : 0));
   return h ? Object.fromEntries(h.spells.map(s => [s.id, lv])) : {};
 }
 function aiName() { return ['Sir Hiss-a-lot', 'Lady Scratchington', 'Baron Von Floof', 'Count Clawdius', 'Duke Nibbles', 'Madame Mischief', 'Lord Snugglepuss'][Math.floor(Math.random() * 7)]; }
@@ -1172,7 +1181,7 @@ SCREENS.campaign = () => {
   const stars = CAMPAIGN.reduce((a, l) => a + (p.campaign[l.id] || 0), 0);
   screens.innerHTML = `${topbar(true, 'Campaign')}
     <div class="campaign">
-      <div class="camp-head card">🗺️ <b>The Great Cat Kingdom</b> — defeat 12 rival heroes to become Top Cat. <span class="pill">★ ${stars}/${CAMPAIGN.length * 3}</span></div>
+      <div class="camp-head card">🗺️ <b>The Great Cat Kingdom</b> — defeat all ${CAMPAIGN.length} rival heroes to become Top Cat. <span class="pill">★ ${stars}/${CAMPAIGN.length * 3}</span></div>
       <div class="camp-path">${CAMPAIGN.map((l, k) => {
         const done = p.campaign[l.id] || 0, locked = l.id > unlockedUpTo;
         const e = heroById(l.enemy);
@@ -1181,7 +1190,7 @@ SCREENS.campaign = () => {
           <img src="${portrait(e.id, 96)}" alt="">
           <div class="cn-name">${l.name}</div>
           <div class="cn-stars">${[1, 2, 3].map(s => `<span class="${s <= done ? 'on' : ''}">★</span>`).join('')}</div>
-          <div class="cn-ai">${AI_LEVELS[l.ai].name}</div>
+          <div class="cn-ai">${l.boss ? '👑 ' : ''}${AI_LEVELS[l.ai].name}</div>
           ${locked ? '<div class="cn-lock">🔒</div>' : ''}
         </div>`;
       }).join('')}</div>
@@ -1194,7 +1203,7 @@ SCREENS.campaign = () => {
     let hero = P.heroUnlocked(p.equip.hero) ? p.equip.hero : HEROES[0].id;
     const m = modal(`<div class="level-card">
       <div class="lc-top"><img src="${portrait(e.id, 140)}"><div><div class="muted">Level ${l.id}</div><h2>${l.name}</h2>
-        <div>Enemy: <b>${e.name}</b> (${AI_LEVELS[l.ai].name} AI)</div><div>Map: <b>${MAP_BY_ID[l.map].name}</b></div>
+        <div>Enemy: <b>${e.name}</b> (${AI_LEVELS[l.ai].name} AI${l.boss ? ', boss' : ''})</div><div>Map: <b>${resolveMap(l.map, campaignSeed(l)).name}</b></div>
         <div>First clear: <b>+${l.reward} 🐟</b></div></div></div>
       <div class="tip">💡 ${l.tip}</div>
       <h3>Your hero</h3><div class="lc-heroes"></div>
@@ -1205,14 +1214,14 @@ SCREENS.campaign = () => {
 };
 function playCampaign(l) {
   const p = P.profile();
-  const seed = 1000 + l.id * 17;
+  const seed = campaignSeed(l);
   beginMatch({
     mode: 'campaign', role: 'local', me: 0, aiLevel: l.ai, level: l,
     cfg: {
       map: resolveMap(l.map, seed), seed, timeLimit: 600,
       players: [
         { name: p.name, hero: p.equip.hero, fur: p.equip.fur, hat: p.equip.hat, skills: P.skillLevels(p.equip.hero) },
-        { name: heroById(l.enemy).name, hero: l.enemy, fur: heroById(l.enemy).fur, hat: l.id >= 11 ? 'crown' : 'none', ai: l.ai, skills: aiSkills(l.enemy, l.ai, l.id) },
+        { name: heroById(l.enemy).name, hero: l.enemy, fur: heroById(l.enemy).fur, hat: l.boss ? 'crown' : 'none', ai: l.ai, skills: aiSkills(l.enemy, l.ai, !!l.boss) },
       ],
     },
   });

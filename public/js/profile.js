@@ -1,5 +1,5 @@
 // Player profile, currency, unlocks and achievements (saved in this browser).
-import { HEROES, FURS, HATS, ACHIEVEMENTS, COINS, AI_LEVELS, CAMPAIGN, HERO_BY_ID, LEGACY_HEROES, SKILL_MAX, skillUpgradeCost } from '../shared/data.js';
+import { HEROES, FURS, HATS, ACHIEVEMENTS, COINS, AI_LEVELS, CAMPAIGN, LEGACY_CAMPAIGN, HERO_BY_ID, LEGACY_HEROES, SKILL_MAX, skillUpgradeCost } from '../shared/data.js';
 
 const KEY = 'altwhiskerwars.profile.v1';
 const NAMES = ['Whiskerpop', 'Sir Fluff', 'Captain Paws', 'Mochi', 'Noodle', 'Biscuit', 'Pickles', 'Tofu', 'Meowzart', 'Purrlock', 'Socks', 'Butterbean', 'Mittensworth', 'Clawdia', 'Catniss'];
@@ -19,7 +19,7 @@ function fresh() {
     equip: { hero: HEROES[0].id, fur: 'ginger', hat: 'none' },
     stats: { matches: 0, wins: 0, onlineMatches: 0, onlineWins: 0, captures: 0, spells: 0, produced: 0, bestStreak: 0, streak: 0, fastestWin: 0 },
     ach: {},
-    campaign: {},
+    campaign: {}, campaignV: 2,
     history: [],
     lastDaily: '', lastFirstWin: '',
     settings: { sfx: 0.8, music: 0.45, muted: false, fx: 'high', showTips: true, layout: 'auto', vibrate: true, fullscreen: true },
@@ -37,7 +37,8 @@ function load() {
     if (raw) {
       const p = JSON.parse(raw);
       const base = fresh();
-      return migrate({ ...base, ...p, equip: { ...base.equip, ...p.equip }, stats: { ...base.stats, ...p.stats }, settings: { ...base.settings, ...p.settings } });
+      // (campaignV comes from the save itself: saves from before it existed still need their campaign moved)
+      return migrate({ ...base, ...p, campaignV: p.campaignV || 1, equip: { ...base.equip, ...p.equip }, stats: { ...base.stats, ...p.stats }, settings: { ...base.settings, ...p.settings } });
     }
   } catch { /* storage blocked */ }
   return fresh();
@@ -55,6 +56,13 @@ function migrate(p) {
   for (const [h, lv] of Object.entries(p.skills || {})) { const n = id(h); sk[n] = { ...(sk[n] || {}), ...lv }; }
   p.skills = sk;
   for (const r of p.history || []) r.hero = id(r.hero);
+  // the 12-level campaign became 24 levels (one per hero): stars move to the level with the same rival
+  if ((p.campaignV || 1) < 2) {
+    const c = {};
+    for (const [lv, stars] of Object.entries(p.campaign || {})) { const n = LEGACY_CAMPAIGN[lv]; if (n) c[n] = Math.max(c[n] || 0, stars); }
+    p.campaign = c;
+    p.campaignV = 2;
+  }
   return p;
 }
 export function save() { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch { /* ignore */ } }

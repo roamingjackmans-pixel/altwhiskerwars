@@ -23,7 +23,8 @@ export class OnlineSession {
     this.closed = false;
     const players = Array(SEATS).fill(null);
     players[0] = isHost ? publicProfile() : null;
-    this.lobby = { size: 2, players, ready: Array(SEATS).fill(false), map: 'meadow', time: 600, rules: {}, phase: 'lobby', seed: (Math.random() * 1e9) | 0 };
+    // upgrades: false puts everyone on level 1 skills, so fish spent on upgrades gives no edge
+    this.lobby = { size: 2, players, ready: Array(SEATS).fill(false), map: 'meadow', time: 600, rules: {}, upgrades: true, phase: 'lobby', seed: (Math.random() * 1e9) | 0 };
     this.wire(transport);
     if (!isHost) this.send({ type: 'hello', p: publicProfile(), v: PROTO });
     this.pingTimer = setInterval(() => { if (this.peerHere) this.send({ type: 'ping', t: performance.now() }); }, 2000);
@@ -196,6 +197,7 @@ export class OnlineSession {
   }
   setMap(id) { if (this.isHost) { this.lobby.map = id; if (id === 'random') this.lobby.seed = (Math.random() * 1e9) | 0; this.broadcast(); } }
   setTime(s) { if (this.isHost) { this.lobby.time = s; this.broadcast(); } }
+  setUpgrades(on) { if (this.isHost) { this.lobby.upgrades = !!on; this.broadcast(); } }
   toggleRule(id) { if (this.isHost) { this.lobby.rules = { ...this.lobby.rules, [id]: !this.lobby.rules[id] }; this.broadcast(); } }
   lobbyEmote(id) { this.send({ type: 'lemote', id, from: this.me }); }
   /** seats filled so far (host included) */

@@ -53,6 +53,7 @@ export class Hud {
     const phone = this.phone = !!this.m.phone;
     if (phone) this.root.classList.add('phone');
     const rules = RULES.filter(r => info.rules && info.rules[r.id]);
+    if (info.rules && info.rules.evenSkills) rules.push({ id: 'evenSkills', icon: '⚖️', name: 'Even skills', desc: 'Skill upgrades are off: every skill is level 1.' });
     const ruleIcons = rules.length ? `<div class="rule-icons">${rules.map(r => `<span title="${r.name}: ${r.desc}">${r.icon}</span>`).join('')}</div>` : '';
     // one coloured share of the bar per player: you first, then the others
     const armybar = `<div class="armybar" title="Buildings each player holds. Your cats on the left; enemy cats are hidden">
