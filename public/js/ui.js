@@ -1,6 +1,6 @@
 // Whisker Wars menus & screens.
 import {
-  HEROES, HERO_BY_ID, CLANS, FURS, HATS, MAPS, MAP_BY_ID, THEMES, AI_LEVELS, CAMPAIGN, ACHIEVEMENTS, BUILDINGS, EMOTES,
+  HEROES, heroById, CLANS, FURS, HATS, MAPS, MAP_BY_ID, THEMES, AI_LEVELS, CAMPAIGN, ACHIEVEMENTS, BUILDINGS, EMOTES,
   randomMap, teamColor, RULES, COINS, PURR, SKILL_MAX, skillAt, skillGain, skillUpgradeCost,
 } from '../shared/data.js';
 import * as P from './profile.js';
@@ -240,7 +240,7 @@ function heroCard(h, { selected, locked, small } = {}) {
  */
 function heroDetail(h, { upgrades = false } = {}) {
   const c = CLANS[h.clan];
-  const tl = { own: 'your building', enemy: 'enemy building', neutral: 'stray building', notown: 'enemy/stray building', area: 'area', global: 'instant' };
+  const tl = { own: 'your building', enemy: 'enemy building', neutral: 'stray building', notown: 'enemy/stray building', owned: 'any player\'s building', any: 'any building', area: 'area', global: 'instant' };
   const p = P.profile();
   const pips = lv => `<span class="ab-pips" title="Level ${lv} of ${SKILL_MAX}">${Array.from({ length: SKILL_MAX }, (_, k) => `<i class="${k < lv ? 'on' : ''}"></i>`).join('')}</span>`;
   return `<div class="hero-detail" style="--clan:${c.color}">
@@ -260,7 +260,7 @@ function heroDetail(h, { upgrades = false } = {}) {
         : `<button class="btn small ab-up ${p.coins >= cost ? 'gold' : 'off'}" data-skill="${s0.id}">⬆ Level ${lv + 1} · <span class="fish">🐟</span> ${cost}</button>
            ${gain.length ? `<div class="ab-gain">${gain.map(esc).join(' · ')}</div>` : ''}`;
       return `<div class="ability"><div class="ab-icon">${s.icon}</div><div class="ab-body"><div class="ab-head"><b>${s.name}</b> <span class="ab-tag">${k + 1}</span>${pips(lv)}</div>
-        <div>${s.text}</div><div class="ab-meta">🌿 ${s.cost} catnip · ⏱ ${s.cd}s · 🎯 ${tl[s.target]}</div>${up}</div></div>`;
+        <div>${s.text}</div><div class="ab-meta">🌿 ${s.cost} catnip · ⏱ ${s.cd}s · ${s.mystery ? '🎲 a random hero\'s skill' : '🎯 ' + tl[s.target]}</div>${up}</div></div>`;
     }).join('')}
     ${h.sees ? '<div class="ability scout"><div class="ab-icon">👁</div><div class="ab-body"><b>Sees hidden armies</b><div>Rival cat counts are hidden from everyone. This hero has a skill that shows them.</div></div></div>' : ''}
   </div>`;
@@ -279,7 +279,7 @@ function heroPicker(root, selected, onPick) {
   draw();
 }
 function showHero(id, after) {
-  const h = HERO_BY_ID[id];
+  const h = heroById(id);
   const owned = P.heroUnlocked(id);
   const p = P.profile();
   const m = modal(`<div class="hd-wrap">${heroDetail(h, { upgrades: owned })}</div>
@@ -363,7 +363,7 @@ const SCREENS = {};
 
 SCREENS.home = () => {
   const p = P.profile();
-  const eq = HERO_BY_ID[p.equip.hero] || HEROES[0];
+  const eq = heroById(p.equip.hero) || HEROES[0];
   screens.innerHTML = `${topbar(false)}
     <div class="home">
       <div class="logo">
@@ -595,7 +595,7 @@ SCREENS.lobby = () => {
   if (!session) return go('friend');
   const S = session;
   const p = P.profile();
-  if (!P.heroUnlocked(p.equip.hero)) P.equip('hero', 'pounce');
+  if (!P.heroUnlocked(p.equip.hero)) P.equip('hero', HEROES[0].id);
   S.setPick({ hero: p.equip.hero, fur: p.equip.fur, hat: p.equip.hat, name: p.name, level: p.level, skills: P.skillLevels(p.equip.hero) });
   const link = `${location.origin}${location.pathname}?room=${S.code}`;
   screens.innerHTML = `${topbar(false, 'Battle Lobby')}
@@ -695,7 +695,7 @@ SCREENS.lobby = () => {
   beReachable();
 
   let myHero = p.equip.hero;
-  const drawDetail = () => { $('.lobby-hero-detail').innerHTML = heroDetail(HERO_BY_ID[myHero]); };
+  const drawDetail = () => { $('.lobby-hero-detail').innerHTML = heroDetail(heroById(myHero)); };
   heroPicker($('.lobby-heroes'), myHero, id => { myHero = id; P.equip('hero', id); S.setPick({ hero: id, skills: P.skillLevels(id) }); if (S.lobby.ready[S.me]) S.setReady(false); drawDetail(); });
   drawDetail();
   let lastMap = null, lastSize = 0;
@@ -712,7 +712,7 @@ SCREENS.lobby = () => {
 
   const slot = (pl, i, ready) => {
     if (!pl) return `<div class="pcard-l empty" data-seat="${i}"><div class="waiting-cat">🐾</div><div>Waiting for a friend...</div><div class="muted small">Send them the code <b>${S.code}</b></div></div>`;
-    const h = HERO_BY_ID[pl.hero] || HEROES[0];
+    const h = heroById(pl.hero) || HEROES[0];
     return `<div class="pcard-l${i === S.me ? ' mine' : ''}" data-seat="${i}" style="--tc:${teamColor(i).main}">
       <img class="pl-hero" src="${portrait(h.id, 120)}" alt="">
       <div class="pl-info"><div class="pl-name">${esc(pl.name)} <span class="pill tiny">Lv ${pl.level}</span></div><div class="pl-hero-n">${h.name}</div>
@@ -1119,8 +1119,8 @@ SCREENS.practice = () => {
       </div>
     </div>`;
   wireGo();
-  let hero = P.heroUnlocked(p.equip.hero) ? p.equip.hero : 'pounce';
-  const det = () => $('.pr-detail').innerHTML = heroDetail(HERO_BY_ID[hero]);
+  let hero = P.heroUnlocked(p.equip.hero) ? p.equip.hero : HEROES[0].id;
+  const det = () => $('.pr-detail').innerHTML = heroDetail(heroById(hero));
   heroPicker($('.pr-heroes'), hero, id => { hero = id; P.equip('hero', id); det(); });
   det();
   const drawMaps = () => {
@@ -1139,7 +1139,7 @@ SCREENS.practice = () => {
 };
 /** computer cats get stronger skills on harder settings (and later campaign levels) */
 function aiSkills(heroId, ai, campaignLevel = 0) {
-  const h = HERO_BY_ID[heroId];
+  const h = heroById(heroId);
   const base = { easy: 1, normal: 2, hard: 3, insane: 4 }[ai] || 1;
   const lv = Math.min(SKILL_MAX, base + (campaignLevel >= 11 ? 1 : 0));
   return h ? Object.fromEntries(h.spells.map(s => [s.id, lv])) : {};
@@ -1154,7 +1154,7 @@ function playPractice() {
   const names = [...new Set(Array.from({ length: 20 }, aiName))];
   const foes = Array.from({ length: n - 1 }, (_, k) => {
     const hero = k === 0 && sp.enemy !== 'random' ? sp.enemy : HEROES[Math.floor(Math.random() * HEROES.length)].id;
-    return { name: names[k] || aiName(), hero, fur: HERO_BY_ID[hero].fur, hat: hats[Math.floor(Math.random() * hats.length)], ai: sp.ai, skills: aiSkills(hero, sp.ai) };
+    return { name: names[k] || aiName(), hero, fur: heroById(hero).fur, hat: hats[Math.floor(Math.random() * hats.length)], ai: sp.ai, skills: aiSkills(hero, sp.ai) };
   });
   beginMatch({
     mode: 'practice', role: 'local', me: 0, aiLevel: sp.ai,
@@ -1175,7 +1175,7 @@ SCREENS.campaign = () => {
       <div class="camp-head card">🗺️ <b>The Great Cat Kingdom</b> — defeat 12 rival heroes to become Top Cat. <span class="pill">★ ${stars}/${CAMPAIGN.length * 3}</span></div>
       <div class="camp-path">${CAMPAIGN.map((l, k) => {
         const done = p.campaign[l.id] || 0, locked = l.id > unlockedUpTo;
-        const e = HERO_BY_ID[l.enemy];
+        const e = heroById(l.enemy);
         return `<div class="camp-node card ${locked ? 'locked' : 'clickable'} ${done ? 'done' : ''} ${l.id === unlockedUpTo ? 'current' : ''}" data-lv="${l.id}" style="--d:${k}">
           <div class="cn-num">${l.id}</div>
           <img src="${portrait(e.id, 96)}" alt="">
@@ -1190,8 +1190,8 @@ SCREENS.campaign = () => {
   wireGo();
   $$('.camp-node.clickable').forEach(n => n.onclick = () => {
     const l = CAMPAIGN.find(x => x.id === +n.dataset.lv);
-    const e = HERO_BY_ID[l.enemy];
-    let hero = P.heroUnlocked(p.equip.hero) ? p.equip.hero : 'pounce';
+    const e = heroById(l.enemy);
+    let hero = P.heroUnlocked(p.equip.hero) ? p.equip.hero : HEROES[0].id;
     const m = modal(`<div class="level-card">
       <div class="lc-top"><img src="${portrait(e.id, 140)}"><div><div class="muted">Level ${l.id}</div><h2>${l.name}</h2>
         <div>Enemy: <b>${e.name}</b> (${AI_LEVELS[l.ai].name} AI)</div><div>Map: <b>${MAP_BY_ID[l.map].name}</b></div>
@@ -1212,7 +1212,7 @@ function playCampaign(l) {
       map: resolveMap(l.map, seed), seed, timeLimit: 600,
       players: [
         { name: p.name, hero: p.equip.hero, fur: p.equip.fur, hat: p.equip.hat, skills: P.skillLevels(p.equip.hero) },
-        { name: HERO_BY_ID[l.enemy].name, hero: l.enemy, fur: HERO_BY_ID[l.enemy].fur, hat: l.id >= 11 ? 'crown' : 'none', ai: l.ai, skills: aiSkills(l.enemy, l.ai, l.id) },
+        { name: heroById(l.enemy).name, hero: l.enemy, fur: heroById(l.enemy).fur, hat: l.id >= 11 ? 'crown' : 'none', ai: l.ai, skills: aiSkills(l.enemy, l.ai, l.id) },
       ],
     },
   });
@@ -1291,7 +1291,7 @@ SCREENS.profile = () => {
       <div class="card panel"><h3>🏆 Achievements (${Object.keys(p.ach).length}/${ACHIEVEMENTS.length})</h3>
         <div class="ach-grid">${ACHIEVEMENTS.map(a => `<div class="ach ${p.ach[a.id] ? 'got' : ''}"><div class="ach-i">${p.ach[a.id] ? '🏆' : '🔒'}</div><div><b>${a.name}</b><div class="small">${a.desc}</div></div><div class="ach-r">+${a.reward}🐟</div></div>`).join('')}</div></div>
       <div class="card panel"><h3>📜 Recent battles</h3>
-        ${p.history.length ? `<div class="hist">${p.history.map(h => `<div class="hist-row ${h.win ? 'w' : h.draw ? 'd' : 'l'}"><span>${h.win ? 'WIN' : h.draw ? 'DRAW' : 'LOSS'}</span><span>${h.mode}</span><span>vs ${esc(h.opp)}</span><span>${HERO_BY_ID[h.hero]?.name || ''}</span><span>${esc(h.map || '')}</span></div>`).join('')}</div>` : '<p class="muted">No battles yet. Go get \'em!</p>'}
+        ${p.history.length ? `<div class="hist">${p.history.map(h => `<div class="hist-row ${h.win ? 'w' : h.draw ? 'd' : 'l'}"><span>${h.win ? 'WIN' : h.draw ? 'DRAW' : 'LOSS'}</span><span>${h.mode}</span><span>vs ${esc(h.opp)}</span><span>${heroById(h.hero)?.name || ''}</span><span>${esc(h.map || '')}</span></div>`).join('')}</div>` : '<p class="muted">No battles yet. Go get \'em!</p>'}
       </div>
     </div>`;
   wireGo();
@@ -1318,7 +1318,7 @@ SCREENS.howto = () => {
         <div class="how-i">🔄</div><div><h3>4. Switch buildings</h3><p>Any building can change its job (it costs cats and goes back to level 1). <b>Towers</b> belong on the front line: they shoot cats walking past and are tough to take. <b>Forges</b> make every one of your cats hit harder and <b>Gardens</b> refill catnip much faster, so keep those safe at the back.</p></div>
       </div>
       <div class="card panel how">
-        <div class="how-i">❓</div><div><h3>5. Hidden armies</h3><p>Nobody can see how many cats are inside a rival's buildings (they show <b>?</b>), not even the computer. Only two heroes can look inside: <b>Agent Velvet</b>'s Spy Eye and <b>Chef Grimsby</b>'s Food Poisoning (marked 👁). Everyone else has to guess, so watch which squads leave and arrive. Cats walking on the road always show their numbers.</p></div>
+        <div class="how-i">❓</div><div><h3>5. Hidden armies</h3><p>Nobody can see how many cats are inside a rival's buildings (they show <b>?</b>), not even the computer. Only two heroes can look inside: <b>Doctor Whirl</b>'s Spy Eye and <b>Morrow</b>'s Food Poisoning (marked 👁). Everyone else has to guess, so watch which squads leave and arrive. Cats walking on the road always show their numbers.</p></div>
       </div>
       <div class="card panel how">
         <div class="how-i">🌿</div><div><h3>6. Hero skills</h3><p>Your hero has <b>4 skills</b> that cost catnip: 20, 40, 60 and 80. Catnip starts at <b>zero</b> and refills slowly, faster with <b>Catnip Gardens</b>. Losing cats in an attack also gives some back, a lot more when your Purr Power is low. Tap a skill (or press 1-4), then tap the map or a glowing building. Level skills up with 🐟 fish on the Heroes screen.</p></div>

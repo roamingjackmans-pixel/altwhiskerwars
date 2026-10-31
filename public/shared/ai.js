@@ -4,11 +4,16 @@ import { BUILDINGS, AI_LEVELS, BASE_SPEED, STRAY_REGROW, strayRegrowRate } from 
 // buildings are compared by how far a cat has to WALK (around ponds, walls and mounds), not as the crow flies
 
 // area skills aimed at a clump of enemy squads: how many enemy cats make it worth it
-const AREA_ENEMY = { firering: 12, uturn: 10, rewind: 12, sweettalk: 10, chickens: 12, frostring: 12, slowmo: 12, gohome: 12, tornado: 10 };
+const AREA_ENEMY = {
+  firering: 12, uturn: 10, rewind: 12, sweettalk: 10, chickens: 12, frostring: 12, slowmo: 12, gohome: 12, tornado: 10,
+  ufo: 8, gravity: 12, rain: 12, sandstorm: 14, mines: 10, icerain: 12, zapfence: 14,
+};
 // area skills that help my own attacking squads
-const AREA_MINE = { zoomboots: 12, fury: 14, cloak: 12, vortex: 14, fog: 14 };
+const AREA_MINE = { zoomboots: 12, fury: 14, cloak: 12, vortex: 14, fog: 14, slugs: 12, pulse: 12, aura: 12, totem: 12, stones: 12, heads: 10 };
 // "next cats you send from here" skills: cast on a rich building, then attack from it
-const NEXT_SEND = ['ranks', 'flying', 'shortcut'];
+const NEXT_SEND = ['ranks', 'flying', 'shortcut', 'toarms', 'bfg', 'barrier', 'wind', 'coldwave'];
+// area skills that hit everyone: keep them off my own cats
+const HITS_ALL = ['frostring', 'slowmo', 'gohome', 'icerain'];
 
 export class AI {
   constructor(game, idx, level = 'normal') {
@@ -78,7 +83,7 @@ export class AI {
   }
 
   cmd(c) { this.g.command(this.i, c); }
-  blocked(b) { return this.g.fx(b, 'shackle'); }
+  blocked(b) { return this.g.fx(b, 'shackle') || this.g.fx(b, 'possess'); }
 
   think() {
     const g = this.g, me = this.i;
@@ -190,7 +195,7 @@ export class AI {
     const options = [];
     for (const tg of g.buildings) {
       if (tg.owner === me) continue;
-      if (g.fx(tg, 'invuln')) continue;
+      if (g.fx(tg, 'invuln') || g.fx(tg, 'cauldron') || (tg.owner >= 0 && g.fx(tg, 'bounce'))) continue;
       const srcs = mine
         .filter(b => !this.threatened.includes(b) && !this.blocked(b))
         .map(b => ({ b, d: g.pathLen(b, tg), avail: b.count - this.reserve(b) }))
@@ -240,12 +245,12 @@ export class AI {
   trySpells(mine) {
     const g = this.g, me = this.i, p = g.players[me];
     if (p.gcd > 0 || p.silenced > g.time) return false;
-    const n = p.hero.spells.length;
+    const n = p.slots.length;
     const order = Array.from({ length: n }, (_, k) => k).sort((a, b) => b - a);   // big skills first
     if (this.saveFor == null || Math.random() < 0.1) this.saveFor = Math.random() < 0.5 ? order[0] : -1;
     for (const slot of order) {
       const sp = g.spell(me, slot);
-      if (p.cds[slot] > 0) continue;
+      if (!sp || (p.cds[slot] > 0 && !sp.stolen)) continue;
       if (p.catnip < sp.cost) {
         if (slot === this.saveFor) return false; // saving up for the big one
         continue;
@@ -295,29 +300,44 @@ export class AI {
 
     if (AREA_ENEMY[sp.id] != null) {
       // the ones that hit everybody shouldn't land on my own cats
-      const c = this.bestCluster(isEnemy, r, sp.id === 'firering' ? 0.7 : 0, ['uturn', 'gohome', 'slowmo', 'rewind'].includes(sp.id) ? atMe : null);
+      const c = this.bestCluster(isEnemy, r, ['firering', 'icerain'].includes(sp.id) ? 0.7 : 0, ['uturn', 'gohome', 'slowmo', 'rewind', 'rain', 'zapfence'].includes(sp.id) ? atMe : null);
       if (!c || c.n < AREA_ENEMY[sp.id]) return null;
-      if (['frostring', 'slowmo', 'gohome'].includes(sp.id) && this.catsNear(c.x, c.y, r, isMe) > c.n * 0.3) return null;
+      if (HITS_ALL.includes(sp.id) && this.catsNear(c.x, c.y, r, isMe) > c.n * 0.3) return null;
       return { x: c.x, y: c.y };
     }
     if (AREA_MINE[sp.id] != null) {
-      const c = this.bestCluster(isMe, r, 0, attacking);
+      const c = this.bestCluster(isMe, r, 0, s => attacking(s) && !s.stash && !s.ball);
       if (!c || c.n < AREA_MINE[sp.id]) return null;
       if (['zoomboots', 'fury', 'vortex'].includes(sp.id) && this.catsNear(c.x, c.y, r, isEnemy) > c.n * 0.4) return null;
       return { x: c.x, y: c.y };
     }
     if (NEXT_SEND.includes(sp.id)) {
-      const b = maxBy(mine.filter(x => !this.threatened.includes(x) && !this.blocked(x) && x.count >= 24), x => x.count);
+      const b = maxBy(mine.filter(x => !this.threatened.includes(x) && !this.blocked(x) && x.count >= 24 && !(sp.id === 'bfg' && x.type === 'cattree')), x => x.count);
       if (!b) return null;
       return { b: b.id, after: () => { this.preferSource = b.id; } };
     }
+    const threat = () => maxBy(this.threatened, x => this.incoming.get(x.id) || 0);
+    const incomingAll = () => [...this.incoming.values()].reduce((a, v) => a + v, 0);
     switch (sp.id) {
       // ---- my buildings under attack
-      case 'stonepaws': case 'bounce': case 'zapfence': case 'untouchable': {
-        const b = maxBy(this.threatened, x => this.incoming.get(x.id) || 0);
+      case 'stonepaws': case 'bounce': case 'untouchable': case 'haunt': case 'reap': case 'quicksand': {
+        const b = threat();
         if (!b) return null;
         if (sp.id === 'untouchable' && b.count < 8) return null;
+        if (sp.id === 'reap' && (this.incoming.get(b.id) || 0) < 15) return null;
         return { b: b.id };
+      }
+      case 'lifecycle': { const b = maxBy(this.threatened.filter(x => x.level >= 2), x => this.incoming.get(x.id) || 0); return b ? { b: b.id } : null; }
+      case 'moths': {
+        const b = maxBy(mine.filter(x => x.count >= 15), x => this.catsNear(x.x, x.y, 170, isEnemy));
+        return b && this.catsNear(b.x, b.y, 170, isEnemy) >= 12 ? { b: b.id } : null;
+      }
+      case 'fortify': return this.threatened.length >= 2 || incomingAll() >= 30 ? {} : null;
+      case 'spirited': {
+        // their attack lands on their own richest building
+        if (!this.threatened.length) return null;
+        const b = maxBy(enemyB.filter(x => !g.fx(x, 'cauldron')), x => this.est(x));
+        return b ? { b: b.id } : null;
       }
       case 'pods': {
         const b = this.threatened[0] || (Math.random() < 0.4 ? maxBy(mine.filter(x => this.isFront(x)), x => -x.count) : null);
@@ -327,6 +347,37 @@ export class AI {
         // pull enemy squads into a strong building
         const b = maxBy(mine.filter(x => x.count >= 15), x => this.catsNear(x.x, x.y, sp.r, isEnemy) * g.defense(x));
         return b && this.catsNear(b.x, b.y, sp.r, isEnemy) >= 10 ? { b: b.id } : null;
+      }
+      // ---- my economy
+      case 'builder': {
+        const b = maxBy(mine.filter(x => x.type === 'cottage' && x.level < 5), x => -x.level);
+        return b ? { b: b.id, after: () => this.cmd({ k: 'up', b: b.id }) } : null;
+      }
+      case 'prodshift': {
+        if (mine.filter(x => x.type === 'cottage').length < 3) return null;
+        const b = threat() || (Math.random() < 0.3 ? maxBy(mine.filter(x => this.isFront(x) && !this.blocked(x)), x => x.count) : null);
+        return b ? { b: b.id, after: () => { this.preferSource = b.id; } } : null;
+      }
+      case 'goldpurr': case 'bloodpact': return this.threatened.length || g.squads.filter(s => s.owner === me && attacking(s)).reduce((a, s) => a + s.count, 0) >= 25 ? {} : null;
+      case 'unity': {
+        const need = this.threatened[0];
+        if (!need) return null;
+        const src = maxBy(mine.filter(x => x !== need && !this.threatened.includes(x) && !this.blocked(x) && x.count >= 15), x => x.count);
+        return src ? { b: src.id, after: () => this.cmd({ k: 'send', from: [src.id], to: need.id, pct: 1 }) } : null;
+      }
+      case 'deposit': {
+        // copy a big group of reinforcements walking between my own buildings
+        const c = this.bestCluster(isMe, r, 0, atMe);
+        return c && c.n >= 15 && g.squads.filter(s => s.owner === me && !s.stash).length >= 3 ? { x: c.x, y: c.y } : null;
+      }
+      case 'clone': {
+        const c = this.bestCluster(isEnemy, r, 0, s => s.owner >= 0 && g.byId.get(s.from) && g.byId.get(s.from).owner === s.owner);
+        return c && c.n >= 15 ? { x: c.x, y: c.y } : null;
+      }
+      case 'ghostarmy': case 'skeletons': {
+        const n = sp.n * g.attack(me, null);
+        const b = maxBy(enemyB.filter(x => !g.fx(x, 'cauldron') && !(sp.id === 'skeletons' && x.type === 'cottage' && x.level >= 5) && this.est(x) * g.defense(x) < n * 0.9), x => this.value(x));
+        return b ? { b: b.id } : null;
       }
       case 'popup': {
         const b = maxBy([...this.threatened, ...mine.filter(x => this.isFront(x))].filter(x => ['cottage', 'forge', 'garden'].includes(x.type) && x.count >= 5), x => (this.incoming.get(x.id) || 0) + this.catsNear(x.x, x.y, 250, isEnemy));
@@ -379,7 +430,47 @@ export class AI {
         const best = maxBy(near, o => o.s.count);
         return best && best.s.count >= 8 ? { b: best.tg.id } : null;
       }
-      case 'hypno': { const b = maxBy(notMine, x => this.est(x) * (x.owner >= 0 ? 1.3 : 1)); return b && this.est(b) >= 14 ? { b: b.id } : null; }
+      case 'hypno': case 'maneuver': case 'worm': {
+        const b = maxBy(notMine.filter(x => !g.fx(x, 'cauldron')), x => this.est(x) * (x.owner >= 0 ? 1.3 : 1) + (sp.id === 'worm' ? this.catsNear(x.x, x.y, sp.r, isEnemy) : 0));
+        if (!b || this.est(b) < (sp.id === 'worm' ? 20 : 14)) return null;
+        if (sp.id !== 'hypno') return { b: b.id };
+        // Hypnotize: give the spellbound cats their order straight away (march them home)
+        return { b: b.id, after: () => { const home = g.nearestOwnedByPath(me, b); if (home) this.cmd({ k: 'send', from: [b.id], to: home.id, pct: 1 }); } };
+      }
+      case 'shrink': case 'seal': {
+        const b = maxBy(enemyB.filter(x => !g.fx(x, 'cauldron')), x => this.est(x) + (this.isFront(x) ? 10 : 0));
+        return b && this.est(b) >= 15 ? { b: b.id } : null;
+      }
+      case 'tempdown': { const b = maxBy(enemyB.filter(x => x.level >= 3 && !g.fx(x, 'cauldron')), x => x.level * 4 + this.est(x) / 5); return b ? { b: b.id } : null; }
+      case 'possess': {
+        // take it for a moment and throw away its upgrades
+        const b = maxBy(enemyB.filter(x => x.level >= 2 && x.type !== 'cattree' && !g.fx(x, 'cauldron')), x => x.level * 5 + this.est(x) / 4);
+        return b ? { b: b.id, after: () => this.cmd({ k: 'conv', b: b.id, to: b.type === 'cottage' ? 'garden' : 'cottage' }) } : null;
+      }
+      case 'cauldron': { const b = maxBy(enemyB, x => this.value(x) * x.level + this.est(x) / 5); return b && (b.level >= 3 || b.type === 'cattree' || this.est(b) >= 30) ? { b: b.id } : null; }
+      case 'thief': {
+        const rich = g.players.filter(q => q.alive && q.idx !== me && g.stars(q.idx) >= 1 && q.purr > P.purr);
+        const v = maxBy(rich, q => q.purr);
+        const b = v && g.buildings.find(x => x.owner === v.idx && !g.fx(x, 'cauldron'));
+        return b ? { b: b.id } : null;
+      }
+      case 'evenout': {
+        // a rival with one big stack and thin edges: spread it out
+        for (const q of g.players) {
+          if (!q.alive || q.idx === me) continue;
+          const theirs = g.buildings.filter(x => x.owner === q.idx);
+          if (theirs.length < 3) continue;
+          const big = maxBy(theirs, x => this.est(x));
+          const avg = theirs.reduce((a, x) => a + this.est(x), 0) / theirs.length;
+          if (this.est(big) >= 30 && this.est(big) > avg * 2.2) return { b: big.id };
+        }
+        return null;
+      }
+      case 'glaciate': return g.players.some(q => q.alive && q.idx !== me && q.catnip >= 30 && q.catnip < 80) ? {} : null;
+      case 'steal': {
+        const last = g.players.filter(q => q.idx !== me && q.lastCast).sort((a, b) => b.lastCast.t - a.lastCast.t)[0];
+        return last && P.catnip >= 60 ? {} : null;
+      }
       // ---- whole-battle skills
       case 'luckystar': return g.stars(me) <= 3 && (this.threatened.length || g.squads.some(s => s.owner === me && attacking(s) && s.count >= 12)) ? {} : null;
       case 'sneak': return enemyB.length >= 2 && enemyB.length <= 8 ? {} : null;

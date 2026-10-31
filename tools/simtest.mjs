@@ -34,5 +34,5 @@ for (let g = 0; g < N; g++) {
 }
 console.log('\navg match', (totalTime / N).toFixed(0), 's; timeouts', timeouts, '; errors', errors);
 console.log('hero win rates:', Object.keys(games).map(h => `${h} ${(wins[h] || 0)}/${games[h]}`).join(', '));
-const allSpells = HEROES.flatMap(h => h.spells.map(s => s.id));
+const allSpells = HEROES.flatMap(h => h.spells.filter(s => !s.mystery).map(s => s.id));
 console.log('spells never cast:', allSpells.filter(s => !spellCasts[s]).join(', ') || 'none');

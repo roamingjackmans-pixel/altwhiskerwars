@@ -1,13 +1,12 @@
 // Whisker Wars match controller: runs/receives the simulation, handles input, feeds renderer + HUD.
-import { Game, radiusOf, BFX, SFX, ZONES, PF, maskSnap } from '../shared/game.js';
+import { Game, radiusOf, SFX, ZONES, PF, maskSnap, bfxHas } from '../shared/game.js';
 import { AI } from '../shared/ai.js';
-import { TICK, SNAP_EVERY, BTYPES, BUILDINGS, HERO_BY_ID, HEROES, skillAt, PURR, BASE_SPEED, WORLD_W, WORLD_H, strayRegrowRate } from '../shared/data.js';
+import { TICK, SNAP_EVERY, BTYPES, BUILDINGS, HEROES, heroById, findSpell, skillAt, PURR, BASE_SPEED, WORLD_W, WORLD_H, strayRegrowRate } from '../shared/data.js';
 import { Renderer, spellTargetOk } from './render.js';
 import { Hud } from './hud.js';
 import { audio } from './audio.js';
 import { isPhone, isPortrait, vibrate } from './device.js';
 
-const BBIT = n => 1 << BFX.indexOf(n);
 const LEFT_BIT = 1 << SFX.indexOf('left');
 const PCTS = [0.25, 0.5, 0.75, 1];
 
@@ -295,12 +294,12 @@ export class Match {
     const art = this.renderer.artScale || 1;
     const buildings = [], byId = new Map();
     for (const arr of b.b) {
-      const [id, owner, ti, level, count, fx, cap, tlv, full] = arr;
+      const [id, owner, ti, level, count, fx, cap, tlv, full, fx2] = arr;
       const p = pos.get(id);
       const prev = a._b.get(id);
       const c = prev && prev[1] === owner && count >= 0 && prev[4] >= 0 ? prev[4] + (count - prev[4]) * u : count;
       const type = BTYPES[ti];
-      const o = { id, x: p.x, y: p.y, owner, type, level, count: c, fx, cap, tlv: tlv || 0, full: full || 0, radius: radiusOf(type, level) * art };
+      const o = { id, x: p.x, y: p.y, owner, type, level, count: c, fx, fx2: fx2 || 0, cap, tlv: tlv || 0, full: full || 0, radius: radiusOf(type, level) * art };
       buildings.push(o); byId.set(id, o);
     }
     const squads = [], squadById = new Map();
@@ -319,9 +318,22 @@ export class Match {
       const o = { id, owner, count, x: sx, y: sy, fx, to };
       squads.push(o); squadById.set(id, o);
     }
-    const players = b.p.map(arr => ({ catnip: arr[0], purr: arr[1], cds: [arr[2], arr[3], arr[4], arr[11] || 0], buffs: arr[5], alive: arr[6], army: arr[7], stars: arr[8], gcd: arr[9], scoutCd: arr[10] || 0, scouting: !!(arr[5] & PF.scouting), silenced: !!(arr[5] & PF.silenced), purrLock: !!(arr[5] & PF.purrLock) }));
-    // lasting skill areas, turned like everything else
-    const zones = (b.z || []).map(([k, x, y, r, o, left]) => { const v = this.fwd(x, y); return { k: ZONES[k], x: v.x, y: v.y, r, o, left }; });
+    const players = b.p.map(arr => ({
+      catnip: arr[0], purr: arr[1], cds: [arr[2], arr[3], arr[4], arr[11] || 0], buffs: arr[5], alive: arr[6], army: arr[7], stars: arr[8], gcd: arr[9], scoutCd: arr[10] || 0,
+      scouting: !!(arr[5] & PF.scouting), silenced: !!(arr[5] & PF.silenced), purrLock: !!(arr[5] & PF.purrLock),
+      golden: !!(arr[5] & PF.golden), glacier: !!(arr[5] & PF.glacier), blood: !!(arr[5] & PF.blood),
+      stolen: arr[12] || '', stolenLv: arr[13] || 0, hypno: arr[14] ?? -1,
+    }));
+    // lasting skill areas, turned like everything else (lanes and walls keep their direction on screen)
+    const zones = (b.z || []).map(([k, x, y, r, o, left, deg, w]) => {
+      const v = this.fwd(x, y);
+      const z = { k: ZONES[k], x: v.x, y: v.y, r, o, left, w: w || 0 };
+      if (deg || ZONES[k] === 'barrier' || ZONES[k] === 'wind' || ZONES[k] === 'wave') {
+        const a = (deg || 0) * Math.PI / 180, q = this.fwd(x + Math.cos(a) * 100, y + Math.sin(a) * 100);
+        z.ux = (q.x - v.x) / 100; z.uy = (q.y - v.y) / 100;
+      }
+      return z;
+    });
     return { t: a.t + (b.t - a.t) * u, buildings, byId, squads, squadById, players, zones, timeLimit: this.info.timeLimit };
   }
 
@@ -369,6 +381,12 @@ export class Match {
           stone: 'shield', boots: 'buff', star: 'star', sneak: 'hiss', popup: 'upgrade', boom: 'cannon', ranks: 'buff', bomb: 'explosion',
           shackle: 'curse', even: 'coinflip', fury: 'buff', fire: 'explosion', beam: 'warp', cloak: 'smoke', uturn: 'ufo', pods: 'warp',
           spy: 'magic', fog: 'smoke', hypno: 'magic', fence: 'zap', intel: 'magic', rewind: 'warp', shortcut: 'warp', chain: 'zap',
+          build: 'upgrade', transfer: 'warp', mean: 'coinflip', gold: 'star', snatch: 'magic', cycle: 'heal', slug: 'magic', moths: 'buff',
+          arms: 'buff', shrink: 'curse', cannon: 'cannon', fort: 'upgrade', stash: 'smoke', barrier: 'zap', heads: 'buff', clone: 'magic',
+          ufo: 'ufo', pulse: 'buff', aura: 'shield', grav: 'ufo', chill: 'freeze', wave: 'freeze', glacier: 'freeze', hail: 'freeze',
+          qsand: 'curse', unity: 'warp', wind: 'buff', worm: 'vacuum', totem: 'buff', stones: 'buff', rain: 'magic', sand: 'vacuum',
+          haunt: 'magic', possess: 'curse', redirect: 'warp', ghosts: 'magic', seal: 'curse', mines: 'cannon', thief: 'coin', reap: 'heal',
+          bones: 'hiss', steal: 'coinflip', blood: 'curse', cauldron: 'curse',
           kboom: 'heal', hush: 'snore', paper: 'magic', charm: 'meow', freeze: 'freeze', fly: 'buff', frost: 'freeze', tornado: 'vacuum',
           vortex: 'buff', pfreeze: 'freeze', chicken: 'magic', magnet: 'ufo', crumble: 'explosion', revive: 'heal', home: 'warp', panic: 'hiss',
           soul: 'magic', invuln: 'shield', slowmo: 'magic', plague: 'curse', defect: 'meow', bounce: 'shield', swap: 'coinflip', echo: 'curse',
@@ -397,12 +415,31 @@ export class Match {
   }
 
   // ---------- helpers for UI ----------
-  myHero() { return HERO_BY_ID[this.info.players[this.me].hero] || HEROES[0]; }
-  /** one of my hero's skills, with its numbers at my level */
-  mySkill(slot) { const sp = this.myHero().spells[slot]; return sp ? skillAt(sp, ((this.info.players[this.me] || {}).skills || {})[sp.id] || 1) : null; }
+  myHero() { return heroById(this.info.players[this.me].hero) || HEROES[0]; }
+  /** one of my skills this battle, with its numbers at my level (Copy Cat shows the copied skill once it has one) */
+  mySkill(slot) {
+    const me = this.view && this.view.players[this.me];
+    const base = this.mySlotSpell(slot);
+    if (me && me.stolen && base && base.id === 'steal') {
+      const st = findSpell(me.stolen);
+      if (st) return { ...skillAt(st, me.stolenLv || 1), stolen: true };
+    }
+    return base;
+  }
+  /** the skill in one of my slots (Riddle's are rolled at the start of the battle) */
+  mySlotSpell(slot) {
+    const pl = this.info.players[this.me] || {};
+    const id = pl.slots && pl.slots[slot];
+    const sp = (id && findSpell(id)) || this.myHero().spells[slot];
+    if (!sp) return null;
+    const lv = (pl.lvs && pl.lvs[slot]) || (pl.skills || {})[sp.id] || 1;
+    return skillAt(sp, lv);
+  }
+  /** a building I can send cats from: mine, or one I have just hypnotized */
+  canSendFrom(b, V = this.view) { return !!b && (b.owner === this.me || (!!V && !!V.players[this.me] && V.players[this.me].hypno === b.id)); }
   estAttack(V) {
     let forge = 0;
-    for (const b of V.buildings) if (b.owner === this.me && b.type === 'forge' && !(b.fx & BBIT('frozen')) && !b.tlv) forge += BUILDINGS.forge.atkBonus[b.level - 1];
+    for (const b of V.buildings) if (b.owner === this.me && b.type === 'forge' && !bfxHas(b, 'frozen') && !b.tlv) forge += BUILDINGS.forge.atkBonus[b.level - 1];
     const P = V.players[this.me];
     return (1 + Math.min(0.6, forge)) * (1 + (P ? P.stars * PURR.atk : 0));
   }
@@ -416,7 +453,7 @@ export class Match {
   estDefense(b, V) {
     let d = BUILDINGS[b.tlv ? 'tower' : b.type].defense;
     if (b.owner >= 0 && V) { const P = V.players[b.owner]; if (P) d *= 1 + P.stars * PURR.def; }
-    if (b.fx & BBIT('paper')) d *= 0.25;
+    if (bfxHas(b, 'paper')) d *= 0.25;
     return d;
   }
   refreshUI(V) {
@@ -451,7 +488,7 @@ export class Match {
       }
     }
     // drop sources we no longer own
-    if (ui.sources.length) ui.sources = ui.sources.filter(id => { const b = V.byId.get(id); return b && b.owner === this.me; });
+    if (ui.sources.length) ui.sources = ui.sources.filter(id => this.canSendFrom(V.byId.get(id), V));
     if (ui.allMode && !ui.sources.length) this.setAll(false);
     if (ui.selected != null) { const b = V.byId.get(ui.selected); if (!b || b.owner !== this.me) { ui.selected = null; this.hud.closeBMenu(); } else this.hud.positionBMenu(b); }
   }
@@ -498,7 +535,7 @@ export class Match {
     const P = this.view.players[this.me];
     if (this.ui.targetingSlot === slot) { this.cancelTargeting(); return; }
     if (P && P.silenced) { audio.play('error'); this.hud.flashSpell(slot, '🤫 Hush! No skills right now'); return; }
-    if (!P || P.cds[slot] > 0 || P.gcd > 0) { audio.play('error'); this.hud.flashSpell(slot, 'Recharging...'); return; }
+    if (!P || (P.cds[slot] > 0 && !sp.stolen) || P.gcd > 0) { audio.play('error'); this.hud.flashSpell(slot, 'Recharging...'); return; }
     if (P.catnip < sp.cost) { audio.play('error'); this.hud.flashSpell(slot, 'Need more catnip!'); return; }
     this.closeMenu();
     if (sp.target === 'global') { this.sendCmd({ k: 'spell', slot }); this.hud.pulseTip(slot); return; }
@@ -558,8 +595,8 @@ export class Match {
         this.closeMenu();
         return;
       }
-      if (b && b.owner === this.me) {
-        drag = { sources: [b.id], sx: ev.clientX, sy: ev.clientY, t0: performance.now(), moved: false, pid: ev.pointerId };
+      if (this.canSendFrom(b)) {
+        drag = { sources: [b.id], sx: ev.clientX, sy: ev.clientY, t0: performance.now(), moved: false, pid: ev.pointerId, foreign: b.owner !== this.me };
         this.ui.sources = [b.id];
         if (this.phone) vibrate(6);
         try { c.setPointerCapture(ev.pointerId); } catch { }
@@ -593,6 +630,8 @@ export class Match {
       if (!d.moved && performance.now() - d.t0 < 450) {
         const id = d.sources[0];
         const now = performance.now();
+        // a hypnotized building has no menu: drag from it to give its cats their order
+        if (d.foreign) { this.hud.toast('🌀 Drag from the spellbound building to where its cats should go', 'mine'); this.ui.sources = []; this.ui.target = null; return; }
         if (this.lastTap.id === id && now - this.lastTap.t < 330) { this.upgrade(id); this.lastTap.id = -1; this.closeMenu(); }
         else {
           this.lastTap = { id, t: now };
@@ -619,7 +658,7 @@ export class Match {
     const key = ev => {
       if (this.over || ev.target.tagName === 'INPUT') return;
       const k = ev.key.toLowerCase();
-      const nSk = this.myHero().spells.length;
+      const nSk = 4;
       if (k >= '1' && k <= '9' && +k <= nSk) this.selectSpell(+k - 1);
       else if (k === 'q') this.setPct(0.25); else if (k === 'w') this.setPct(0.5); else if (k === 'e') this.setPct(0.75); else if (k === 'r') this.setPct(1);
       else if (k === 'escape') this.cancelAll();

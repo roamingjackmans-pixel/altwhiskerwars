@@ -1,5 +1,5 @@
 // Player profile, currency, unlocks and achievements (saved in this browser).
-import { HEROES, FURS, HATS, ACHIEVEMENTS, COINS, AI_LEVELS, CAMPAIGN, HERO_BY_ID, SKILL_MAX, skillUpgradeCost } from '../shared/data.js';
+import { HEROES, FURS, HATS, ACHIEVEMENTS, COINS, AI_LEVELS, CAMPAIGN, HERO_BY_ID, LEGACY_HEROES, SKILL_MAX, skillUpgradeCost } from '../shared/data.js';
 
 const KEY = 'altwhiskerwars.profile.v1';
 const NAMES = ['Whiskerpop', 'Sir Fluff', 'Captain Paws', 'Mochi', 'Noodle', 'Biscuit', 'Pickles', 'Tofu', 'Meowzart', 'Purrlock', 'Socks', 'Butterbean', 'Mittensworth', 'Clawdia', 'Catniss'];
@@ -16,7 +16,7 @@ function fresh() {
     heroes: HEROES.filter(h => h.cost === 0).map(h => h.id),
     furs: FURS.filter(f => f.cost === 0).map(f => f.id),
     hats: ['none'],
-    equip: { hero: 'pounce', fur: 'ginger', hat: 'none' },
+    equip: { hero: HEROES[0].id, fur: 'ginger', hat: 'none' },
     stats: { matches: 0, wins: 0, onlineMatches: 0, onlineWins: 0, captures: 0, spells: 0, produced: 0, bestStreak: 0, streak: 0, fastestWin: 0 },
     ach: {},
     campaign: {},
@@ -37,10 +37,25 @@ function load() {
     if (raw) {
       const p = JSON.parse(raw);
       const base = fresh();
-      return { ...base, ...p, equip: { ...base.equip, ...p.equip }, stats: { ...base.stats, ...p.stats }, settings: { ...base.settings, ...p.settings } };
+      return migrate({ ...base, ...p, equip: { ...base.equip, ...p.equip }, stats: { ...base.stats, ...p.stats }, settings: { ...base.settings, ...p.settings } });
     }
   } catch { /* storage blocked */ }
   return fresh();
+}
+/**
+ * Saves from before the 24-hero roster: each old hero becomes the new hero with the same skills, so unlocked heroes,
+ * the main hero and every skill level carry over.
+ */
+function migrate(p) {
+  const id = h => LEGACY_HEROES[h] || h;
+  p.heroes = [...new Set((p.heroes || []).map(id).filter(h => HERO_BY_ID[h]))];
+  for (const h of HEROES) if (h.cost === 0 && !p.heroes.includes(h.id)) p.heroes.push(h.id);
+  p.equip.hero = HERO_BY_ID[id(p.equip.hero)] ? id(p.equip.hero) : HEROES[0].id;
+  const sk = {};
+  for (const [h, lv] of Object.entries(p.skills || {})) { const n = id(h); sk[n] = { ...(sk[n] || {}), ...lv }; }
+  p.skills = sk;
+  for (const r of p.history || []) r.hero = id(r.hero);
+  return p;
 }
 export function save() { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch { /* ignore */ } }
 export function profile() { return P; }

@@ -1,5 +1,6 @@
 // Whisker Wars in-match HUD (HTML overlay on top of the canvas).
-import { HERO_BY_ID, HEROES, skillAt, BUILDINGS, CONVERT_COST, EMOTES, MAX_CATNIP, RULES, PURR, purrFill, teamColor, findSpell } from '../shared/data.js';
+import { HEROES, heroById, BUILDINGS, CONVERT_COST, EMOTES, MAX_CATNIP, RULES, PURR, purrFill, teamColor, findSpell } from '../shared/data.js';
+import { bfxHas } from '../shared/game.js';
 import { heroPortraitURL } from './art.js';
 import { audio } from './audio.js';
 import { profile, setSetting, save as saveProfile } from './profile.js';
@@ -7,7 +8,7 @@ import { exitFullscreen, inFullscreen } from './device.js';
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const fmtTime = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
-const TARGET_LABEL = { own: 'Your building', enemy: 'Enemy building', neutral: 'Stray building', notown: 'Enemy or stray building', area: 'Area', global: 'Instant' };
+const TARGET_LABEL = { own: 'Your building', enemy: 'Enemy building', neutral: 'Stray building', notown: 'Enemy or stray building', owned: 'Any player\'s building', any: 'Any building', area: 'Area', global: 'Instant' };
 const safeURL = (id, s) => { try { return heroPortraitURL(id, s); } catch { return ''; } };
 const PURR_TIP = `Purr Power: your army's morale. Each star gives ALL your cats +${Math.round(PURR.def * 100)}% defense, +${Math.round(PURR.atk * 100)}% attack and +${Math.round(PURR.spd * 100)}% speed. Earn it by capturing (rival buildings most), upgrading and knocking out attackers. Losing buildings, losing cats in attacks and sitting still drain it, fast at high stars.`;
 // five stars; the next one fills up as you earn purr
@@ -33,7 +34,7 @@ export class Hud {
     this.opp = opp;
     const many = this.opps.length > 1;
     const card = (i, side) => {
-      const h = HERO_BY_ID[P[i].hero];
+      const h = heroById(P[i].hero) || HEROES[0];
       const c = teamColor(i);
       return `<div class="pcard ${side}${many && side === 'opp' ? ' mini' : ''}" data-o="${i}" style="--tc:${c.main};--td:${c.dark}">
         <img class="portrait" src="${safeURL(h.id, 96)}" alt="">
@@ -45,10 +46,10 @@ export class Hud {
         <div class="emote-pop"></div>
       </div>`;
     };
-    const hero = HERO_BY_ID[P[me].hero] || HEROES[0];
+    const hero = heroById(P[me].hero) || HEROES[0];
     this.hero = hero;
-    this.sk = hero.spells.map(s => skillAt(s, ((P[me] || {}).skills || {})[s.id] || 1));
-    const nSk = hero.spells.length;
+    // this battle's skills (Riddle rolls random ones; Copy Cat swaps its button for the copied skill)
+    this.sk = [0, 1, 2, 3].map(k => this.m.mySlotSpell(k)).filter(Boolean);
     const phone = this.phone = !!this.m.phone;
     if (phone) this.root.classList.add('phone');
     const rules = RULES.filter(r => info.rules && info.rules[r.id]);
@@ -320,10 +321,20 @@ export class Hud {
     this.els.catFill.style.width = (me.catnip / MAX_CATNIP * 100) + '%';
     this.els.catTxt.textContent = '🌿 ' + Math.floor(me.catnip);
     this.root.classList.toggle('hushed', !!me.silenced);
-    this.sk.forEach((s, k) => {
+    this.root.classList.toggle('glaciated', !!me.glacier);
+    this.sk.forEach((s0, k) => {
       const b = this.els.spells[k];
-      const cd = me.cds[k] || 0;
-      const max = s.cd;
+      // Copy Cat: the button turns into the copied skill until it is used
+      const s = this.m.mySkill(k) || s0;
+      if (s.id !== s0.id) {
+        this.sk[k] = s;
+        b.querySelector('.sicon').textContent = s.icon;
+        b.querySelector('.scost').textContent = s.cost;
+        b.classList.toggle('stolen', !!s.stolen);
+        if (s.stolen) this.toast(`${s.icon} Copied <b>${s.name}</b>! Use it once from button ${k + 1}`, 'mine');
+      }
+      const cd = s.stolen ? 0 : me.cds[k] || 0;
+      const max = this.m.mySlotSpell(k) ? this.m.mySlotSpell(k).cd : s.cd;
       b.classList.toggle('poor', me.catnip < s.cost);
       b.classList.toggle('ready', cd <= 0 && me.catnip >= s.cost);
       const cdEl = b.querySelector('.scd'), txt = b.querySelector('.scdtxt');
@@ -423,13 +434,14 @@ export class Hud {
     const b = V.byId.get(this.bmenuFor);
     if (!b) return this.closeBMenu();
     const def = BUILDINGS[b.type];
-    const eng = false;
-    const cost = def.upgradeCost[b.level - 1] != null ? (eng ? Math.ceil(def.upgradeCost[b.level - 1] * 0.75) : def.upgradeCost[b.level - 1]) : null;
+    // Free Build: the next upgrade or convert costs nothing
+    const free = bfxHas(b, 'build');
+    const cost = def.upgradeCost[b.level - 1] != null ? (free ? 0 : def.upgradeCost[b.level - 1]) : null;
     const n = Math.floor(b.count);
-    const convs = def.noConvert ? [] : Object.keys(CONVERT_COST).filter(t => t !== b.type).map(t => ({ t, c: eng ? Math.ceil(CONVERT_COST[t] * 0.75) : CONVERT_COST[t] }));
+    const convs = def.noConvert ? [] : Object.keys(CONVERT_COST).filter(t => t !== b.type).map(t => ({ t, c: free ? 0 : CONVERT_COST[t] }));
     // changing a building's type asks first: the first tap picks the new type, the second confirms it
     const ask = this.convAsk && this.convAsk.id === b.id ? convs.find(c => c.t === this.convAsk.t) : null;
-    const key = `${b.id}|${b.type}|${b.level}|${cost != null && n >= cost}|${convs.map(c => n >= c.c ? 1 : 0).join('')}|${ask ? ask.t : ''}`;
+    const key = `${free}|${b.id}|${b.type}|${b.level}|${cost != null && n >= cost}|${convs.map(c => n >= c.c ? 1 : 0).join('')}|${ask ? ask.t : ''}`;
     if (!force && key === this.bmenuKey) return;
     this.bmenuKey = key;
     let info = '';
