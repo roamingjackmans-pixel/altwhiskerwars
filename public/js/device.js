@@ -73,7 +73,7 @@ document.addEventListener('gesturestart', e => e.preventDefault());
  */
 export function enterFullscreen() {
   try {
-    if (!isPhone() || !setting('fullscreen', true)) return;
+    if (!isPhone() || !setting('fullscreen', false)) return;
     const el = document.documentElement;
     if (document.fullscreenElement || !el.requestFullscreen) return;
     el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});

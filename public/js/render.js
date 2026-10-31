@@ -13,7 +13,7 @@ const B_ICONS = [['shackle', '⛓️', 0], ['ranks', '🐾', 1], ['pods', '🚀'
   ['echo', '📣', 8], ['plague', '🤢', 9], ['shortcut', '🕳️', 10], ['beam', '🛸', 11], ['build', '🔨', 12], ['transfer', '🚚', 13], ['arms', '🗡️', 14], ['shrink', '🔍', 15],
   ['cannon', '🎯', 16], ['cycle', '♻️', 17], ['barrier', '🚧', 18], ['unity', '🧳', 19], ['wind', '🌬️', 20], ['wave', '🌊', 21], ['chill', '🥶', 22], ['haunt', '🕯️', 23],
   ['possess', '🎭', 24], ['seal', '🔏', 25], ['hypno', '🌀', 26]];
-const FONT = (w, s) => `${w} ${s}px Fredoka, "Baloo 2", "Trebuchet MS", system-ui, sans-serif`;
+const FONT = (w, s) => `${w} ${s}px "Space Grotesk", "Trebuchet MS", system-ui, sans-serif`;
 const TAU = Math.PI * 2;
 const rand = (a, b) => a + Math.random() * (b - a);
 const lerp = (a, b, t) => a + (b - a) * t;

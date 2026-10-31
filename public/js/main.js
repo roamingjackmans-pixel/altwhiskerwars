@@ -17,15 +17,15 @@ function boot(latest) {
   if (isNewer(latest)) offerUpdate(latest);
 }
 
-// make sure the cute font is ready before canvas text is drawn (and ask which build is newest meanwhile)
+// make sure the fonts are ready before canvas text is drawn (and ask which build is newest meanwhile)
 const wait = (p, ms) => Promise.race([p, new Promise(r => setTimeout(r, ms))]);
-const fontReady = document.fonts && document.fonts.load ? wait(document.fonts.load('700 20px Fredoka'), 1500) : Promise.resolve();
+const fontReady = document.fonts && document.fonts.load ? wait(Promise.all([document.fonts.load('700 20px "Space Grotesk"'), document.fonts.load('20px Bungee'), document.fonts.load('20px "Permanent Marker"')]), 1500) : Promise.resolve();
 const latestP = wait(fetchLatest(), 1500);
 Promise.all([fontReady.catch(() => {}), latestP]).then(([, latest]) => {
   try { boot(latest || null); }
   catch (e) {
     console.error(e);
-    document.body.insertAdjacentHTML('beforeend', `<div style="position:fixed;inset:0;display:grid;place-items:center;background:#2b1d3a;color:#fff;font:18px sans-serif;padding:20px;text-align:center">😿 Something went wrong loading Alt Whisker Wars.<br><small>${String(e && e.message || e)}</small></div>`);
+    document.body.insertAdjacentHTML('beforeend', `<div style="position:fixed;inset:0;display:grid;place-items:center;background:#0c0a10;color:#fff;font:18px sans-serif;padding:20px;text-align:center">😿 Something went wrong loading Alt Whisker Wars.<br><small>${String(e && e.message || e)}</small></div>`);
   }
 });
 

@@ -12,7 +12,11 @@
 // answer first. Messages are JSON: player to host {c: id, hs?: host session, m?: message, bye?: 1},
 // host to player {hs, m?, bye?}.
 //
-// Just enough MQTT 3.1.1 is spoken here: connect, subscribe, publish at QoS 0, ping.
+// Friend requests use the same servers as a mailbox: a request is a "retained" message on
+// <root>/mail/<their friend code>/<our friend code>, which the server keeps and hands to them when they next
+// connect, even if they were offline when it was sent. Publishing an empty retained message deletes it.
+//
+// Just enough MQTT 3.1.1 is spoken here: connect, subscribe, publish at QoS 0 (optionally retained), ping.
 
 export const BROKERS = [
   { name: 'emqx', url: 'wss://broker.emqx.io:8084/mqtt' },
@@ -23,6 +27,9 @@ const ROOT = 'jjgames/altwhiskerwars-v1/';
 const OPENERS = new Set(['relay-hello']);   // the first message from a relayed player
 export const hostTopic = code => `${ROOT}${code}/h`;
 export const guestTopic = (code, id) => `${ROOT}${code}/g/${id}`;
+/** a friend request from one friend code to another (see the note at the top) */
+export const mailTopic = (to, from) => `${ROOT}mail/${to}/${from}`;
+export const mailbox = to => `${ROOT}mail/${to}/+`;
 
 const IDLE_MS = 12000;    // a relayed player that sends nothing for this long has gone (they ping every 2 s)
 const KEEPALIVE = 30;     // seconds, told to the server; we ping every 15 s
@@ -99,9 +106,10 @@ export class Link {
     });
   }
 
-  publish(topic, text) {
+  /** retain: the server keeps the message for whoever subscribes later (an empty retained message deletes it) */
+  publish(topic, text, retain = false) {
     if (!this.ready) return false;
-    this._raw(packet(0x30, [mstr(topic), te.encode(text)]));
+    this._raw(packet(retain ? 0x31 : 0x30, [mstr(topic), te.encode(text)]));
     return true;
   }
 
@@ -198,6 +206,7 @@ export class RelayHost {
     this.conns = new Map();
     this.extra = [];         // more topics to listen on (see listen())
     this.onOther = null;     // (link, topic, text) for messages on those topics
+    this.onLink = null;      // (link) once a server is connected and listening (the friends mailbox sends then)
     this.stopped = false;
   }
 
@@ -246,6 +255,7 @@ export class RelayHost {
       for (const t of this.extra) await link.subscribe(t);
       if (this.stopped) { link.close(); return; }
       this.links.add(link);
+      try { this.onLink && this.onLink(link); } catch (e) { console.error(e); }
     } catch {
       link.close();
       retry(Math.min(60000, 3000 * 2 ** tries), tries + 1);

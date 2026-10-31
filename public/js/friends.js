@@ -9,10 +9,17 @@
 // f<friendCode>). Online checks ask both ways at once; invites try direct first and use the relay if that
 // fails, so nobody gets the same invite twice. A phone that can't reach the PeerJS service at all still
 // works through the relay alone.
+//
+// Friend requests work even when the other player is offline: adding someone puts a request in their mailbox on
+// the relay's message servers (a retained message, see relay.js), and they find it the next time they open the
+// game. Until they add you back, your request is put there again every time you play, in case a server forgot
+// it. Adding someone who already sent you a request is a yes: it goes to their mailbox the same way.
 import { profile, save } from './profile.js';
-import { RelayHost, RelayDialer } from './relay.js';
+import { RelayHost, RelayDialer, mailTopic, mailbox } from './relay.js';
 
 const MAX_FRIENDS = 40;
+const MAX_REQUESTS = 30;
+const MAX_IGNORED = 200;
 const CHECK_EVERY = 25000;       // re-check who is online this often while the friends list is on screen
 const INVITE_WAIT = 45000;       // an unanswered invite expires after this long
 const cfg = () => window.WW_CONFIG || {};
@@ -42,19 +49,80 @@ export function addFriend(code, name) {
   const list = friends(), old = list.find(f => f.code === code);
   if (old) { if (name) old.name = cleanName(name); save(); return { ok: true, already: true, friend: old }; }
   if (list.length >= MAX_FRIENDS) return { ok: false, msg: `You can have up to ${MAX_FRIENDS} friends` };
-  const f = { code, name: name ? cleanName(name) : 'Friend ' + fmtFriendCode(code), added: Date.now() };
+  // they asked first: this is a yes, so you're friends both ways right away
+  const p = profile();
+  const req = (p.requests || []).find(r => r.code === code);
+  const f = { code, name: name ? cleanName(name) : req ? req.name : 'Friend ' + fmtFriendCode(code), added: Date.now(), pending: !req };
   list.push(f);
+  p.ignored = (p.ignored || []).filter(c => c !== code);
+  p.mailGone = (p.mailGone || []).filter(c => c !== code);
+  if (req) { p.mailOut = [...new Set([...(p.mailOut || []), code])]; dropRequest(code); }
   save();
   presence.start();
+  presence.sendRequest(code);
   presence.check(code, true);
   emit('change');
-  return { ok: true, friend: f };
+  return { ok: true, friend: f, accepted: !!req };
 }
 export function removeFriend(code) {
   const p = profile();
   p.friends = friends().filter(f => f.code !== code);
+  // take back a request they haven't answered yet
+  p.mailOut = (p.mailOut || []).filter(c => c !== code);
+  p.mailGone = [...new Set([...(p.mailGone || []), code])].slice(-MAX_IGNORED);
   save();
+  presence.withdraw(code);
   presence.status.delete(code);
+  emit('change');
+}
+/** true while you've added them but they haven't added you back (as far as we know) */
+export function isPending(code) { const f = friends().find(x => x.code === code); return !!(f && f.pending); }
+
+// ---------------- friend requests (people who added you) ----------------
+export function friendRequests() {
+  const p = profile();
+  if (!Array.isArray(p.requests)) p.requests = [];
+  return p.requests.filter(r => !isFriend(r.code));
+}
+/** Add them back. */
+export function acceptRequest(code) {
+  const r = friendRequests().find(x => x.code === code);
+  return addFriend(code, r ? r.name : '');
+}
+/** Not now: the request goes away and doesn't come back (unless you add them yourself later). */
+export function ignoreRequest(code) {
+  const p = profile();
+  dropRequest(code);
+  p.ignored = [code, ...(p.ignored || []).filter(c => c !== code)].slice(0, MAX_IGNORED);
+  save();
+  emit('change');
+}
+function dropRequest(code) {
+  const p = profile();
+  if (Array.isArray(p.requests)) p.requests = p.requests.filter(r => r.code !== code);
+  presence.clearMail(code);
+}
+/** Someone added you. Returns true if this request is new. */
+function noteRequest(code, name, at) {
+  const p = profile();
+  if (isFriend(code) || (p.ignored || []).includes(code)) return false;
+  if (!Array.isArray(p.requests)) p.requests = [];
+  const old = p.requests.find(r => r.code === code);
+  if (old) { if (name && old.name !== cleanName(name)) { old.name = cleanName(name); save(); emit('change'); } return false; }
+  p.requests = [{ code, name: cleanName(name), at: Math.min(Date.now(), +at || Date.now()) }, ...p.requests].slice(0, MAX_REQUESTS);
+  save();
+  emit('change');
+  return true;
+}
+/** They added you back: you're friends both ways now. */
+function markMutual(code, name) {
+  const f = friends().find(x => x.code === code);
+  if (!f) return;
+  if (name) rename(code, name);
+  if (!f.pending) return;
+  f.pending = false;
+  save();
+  emit('accepted', { code, name: f.name });
   emit('change');
 }
 // players you met in an online room (not friends yet): the lobby lists them as "played recently" so you can invite them again
@@ -93,10 +161,10 @@ class Presence {
     this.status = new Map();         // friend code -> { state: 'checking' | 'online' | 'offline', at }
     this.pending = new Map();        // friend code -> callbacks for a connection attempt in flight
     this.timer = null;
-    this.asked = new Set();
     this.hub = null;                 // our ear on the relay (and the server connections the dialer shares)
     this.dialer = null;
     this.viaRelay = new Set();       // friends who last answered through the relay: invite them that way first
+    this.clears = new Set();         // requests in our mailbox to delete (again on every server that connects)
   }
   get ready() { return !!this.peer && !this.peer.destroyed && this.peer.open; }
 
@@ -120,6 +188,12 @@ class Presence {
     if (this.hub) return;
     this.hub = new RelayHost('f' + myFriendCode(), conn => this.incoming(conn), m => m.type === 'hello' || m.type === 'invite', listen);
     this.dialer = new RelayDialer(this.hub);
+    // our mailbox on every server (everything else on the hub's extra topics is for the dialer)
+    const dial = this.hub.onOther;
+    this.hub.onOther = (l, t, p) => (t.startsWith(this.mailPrefix) ? this.mail(t, p) : dial && dial(l, t, p));
+    this.hub.listen(mailbox(myFriendCode()));
+    // send after a moment, so requests already waiting for us (maybe a yes to ours) arrive first
+    this.hub.onLink = link => setTimeout(() => this.flushMail(link), 2500);
     this.hub.start();
   }
   open(id) {
@@ -206,13 +280,63 @@ class Presence {
   }
   hello() { const p = profile(); return { type: 'hello', v: 1, code: myFriendCode(), name: p.name }; }
 
+  // ---- the mailbox (friend requests that wait for an offline player) ----
+  get mailPrefix() { return mailTopic(myFriendCode(), ''); }
+  /** our request (or our yes to theirs) as it sits in their mailbox */
+  requestMsg(code) {
+    const f = friends().find(x => x.code === code);
+    return JSON.stringify({ type: 'req', v: 1, code: myFriendCode(), name: profile().name, at: f ? f.added : Date.now() });
+  }
+  /** publish on every connected server; false if none is connected yet (then it goes out when one connects) */
+  everywhere(topic, text) {
+    let sent = false;
+    for (const l of this.hub ? this.hub.links : []) if (l.publish(topic, text, true)) sent = true;
+    return sent;
+  }
+  sendRequest(code) {
+    if (!this.everywhere(mailTopic(code, myFriendCode()), this.requestMsg(code))) return;
+    const p = profile();
+    if ((p.mailOut || []).includes(code)) { p.mailOut = p.mailOut.filter(c => c !== code); save(); }
+  }
+  /** delete a request in our mailbox (answered or ignored) */
+  clearMail(code) { this.clears.add(code); this.everywhere(mailTopic(myFriendCode(), code), ''); }
+  /** delete our request from their mailbox (we removed them) */
+  withdraw(code) {
+    if (!this.everywhere(mailTopic(code, myFriendCode()), '')) return;
+    const p = profile();
+    p.mailGone = (p.mailGone || []).filter(c => c !== code);
+    save();
+  }
+  /** a server just connected: (re)send whatever is waiting */
+  flushMail(link) {
+    if (!link.ready || !this.hub || !this.hub.links.has(link)) return;
+    const me = myFriendCode(), p = profile(), out = new Set(p.mailOut || []), gone = p.mailGone || [];
+    for (const f of friends()) if (f.pending || out.has(f.code)) link.publish(mailTopic(f.code, me), this.requestMsg(f.code), true);
+    for (const c of gone) link.publish(mailTopic(c, me), '', true);
+    for (const c of this.clears) link.publish(mailTopic(me, c), '', true);
+    if (out.size || gone.length) { p.mailOut = []; p.mailGone = []; save(); }
+  }
+  /** a request in our mailbox (on connecting we get every one that is waiting) */
+  mail(topic, text) {
+    if (!text) return;                       // a request that was just deleted
+    let m; try { m = JSON.parse(text); } catch { return; }
+    if (!m || m.type !== 'req') return;
+    const code = cleanFriendCode(topic.slice(topic.lastIndexOf('/') + 1));
+    if (code.length !== 8 || code !== cleanFriendCode(m.code) || code === myFriendCode()) return;
+    const name = cleanName(m.name);
+    // already friends: they said yes to our request (or you both added each other)
+    if (isFriend(code)) { markMutual(code, name); this.clearMail(code); return; }
+    if ((profile().ignored || []).includes(code)) { this.clearMail(code); return; }
+    if (noteRequest(code, name, m.at)) emit('request', { code, name });
+  }
+
   /** Is this friend online right now? (quiet: don't show "checking" again for someone already known) */
   check(code, quiet) {
     const s = this.status.get(code);
     if (!quiet || !s) this.setStatus(code, 'checking');
     return this.talk(code, { ...this.hello(), added: isFriend(code) }, 9000, true)
       .then(({ reply, conn }) => {
-        if (reply && reply.type === 'hi') { rename(code, reply.name); this.setStatus(code, reply.busy ? 'busy' : 'online'); }
+        if (reply && reply.type === 'hi') { rename(code, reply.name); if (reply.added) markMutual(code, reply.name); this.setStatus(code, reply.busy ? 'busy' : 'online'); }
         setTimeout(() => { try { conn.close(); } catch { } }, 200);
       })
       .catch(why => { if (why !== 'superseded') this.setStatus(code, 'offline'); });
@@ -260,9 +384,10 @@ class Presence {
       if (isFriend(code)) { rename(code, name); this.setStatus(code, 'online'); }
       else if (recentPlayers().some(r => r.code === code)) this.setStatus(code, 'online');
       if (m.type === 'hello') {
-        conn.send({ type: 'hi', v: 1, code: myFriendCode(), name: profile().name, busy: !!busyCheck() });
-        // someone added us: offer to add them back (once per visit)
-        if (m.added && !isFriend(code) && !this.asked.has(code)) { this.asked.add(code); emit('request', { code, name }); }
+        conn.send({ type: 'hi', v: 1, code: myFriendCode(), name: profile().name, busy: !!busyCheck(), added: isFriend(code) });
+        // someone added us: it goes in the friend requests (with a pop-up the first time)
+        if (m.added && isFriend(code)) markMutual(code, name);
+        else if (m.added && noteRequest(code, name)) emit('request', { code, name });
       } else if (m.type === 'invite') {
         if (busyCheck()) { conn.send({ type: 'invite-reply', answer: 'busy' }); return; }
         const room = String(m.room || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
@@ -288,7 +413,8 @@ export const presence = new Presence();
 /** Call once at startup: you stay reachable while the game is open once you have friends or have played online. */
 export function initFriends() {
   myFriendCode();
-  if (friends().length || recentPlayers().length || profile().friendsOn) presence.start();
+  const p = profile();
+  if (friends().length || recentPlayers().length || p.friendsOn || friendRequests().length || (p.mailOut || []).length || (p.mailGone || []).length) presence.start();
 }
 /** Opening Battle a Friend makes you reachable (now and on later visits): friends see you online and can invite you. */
 export function beReachable() {
