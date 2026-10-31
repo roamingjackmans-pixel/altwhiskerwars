@@ -600,6 +600,18 @@ export class Match {
         this.ui.sources = [b.id];
         if (this.phone) vibrate(6);
         try { c.setPointerCapture(ev.pointerId); } catch { }
+        // press and hold one of your own buildings: what it does and what it makes, until you let go
+        if (b.owner === this.me) {
+          const d = drag;
+          d.holdTimer = setTimeout(() => {
+            if (drag !== d || d.moved || this.over) return;
+            d.held = true;
+            this.closeMenu();
+            this.ui.sources = []; this.ui.target = null;
+            this.hud.showHoldTip({ kind: 'b', id: b.id });
+            vibrate(12);
+          }, 380);
+        }
       } else {
         this.closeMenu();
         if (b) { this.ui.hover = b.id; }
@@ -611,7 +623,11 @@ export class Match {
       const b = this.pick(p.x, p.y);
       this.ui.hover = b ? b.id : null;
       if (!drag) { this.ui.target = this.ui.allMode && b ? b.id : null; return; }
-      if (!drag.moved && Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) > 9) { drag.moved = true; this.closeMenu(); }
+      if (!drag.moved && Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) > (drag.held ? 18 : 9)) {
+        drag.moved = true; clearTimeout(drag.holdTimer); this.closeMenu();
+        // dragging away from a held building puts the info away and sends cats as usual
+        if (drag.held) { drag.held = false; this.hud.hideHoldTip(); }
+      }
       if (!drag.moved) return;
       if (b && b.owner === this.me && !drag.sources.includes(b.id)) {
         drag.sources.push(b.id);
@@ -624,7 +640,10 @@ export class Match {
     const up = ev => {
       if (!drag) return;
       const d = drag; drag = null;
+      clearTimeout(d.holdTimer);
       try { c.releasePointerCapture(d.pid); } catch { }
+      // letting go of a held building just puts its info away
+      if (d.held) { this.hud.hideHoldTip(); this.ui.sources = []; this.ui.target = null; return; }
       const p = W(ev);
       const b = this.pick(p.x, p.y);
       if (!d.moved && performance.now() - d.t0 < 450) {
@@ -647,7 +666,7 @@ export class Match {
       }
       this.ui.sources = []; this.ui.target = null;
     };
-    const ctx = ev => { ev.preventDefault(); this.cancelAll(); };
+    const ctx = ev => { ev.preventDefault(); if (drag) return; this.cancelAll(); };
     const wheel = ev => {
       if (this.over) return;
       ev.preventDefault();

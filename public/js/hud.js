@@ -4,7 +4,7 @@ import { bfxHas } from '../shared/game.js';
 import { heroPortraitURL } from './art.js';
 import { audio } from './audio.js';
 import { profile, setSetting, save as saveProfile } from './profile.js';
-import { exitFullscreen, inFullscreen } from './device.js';
+import { exitFullscreen, inFullscreen, vibrate } from './device.js';
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const fmtTime = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
@@ -13,6 +13,23 @@ const safeURL = (id, s) => { try { return heroPortraitURL(id, s); } catch { retu
 const PURR_TIP = `Purr Power: your army's morale. Each star gives ALL your cats +${Math.round(PURR.def * 100)}% defense, +${Math.round(PURR.atk * 100)}% attack and +${Math.round(PURR.spd * 100)}% speed. Earn it by capturing (rival buildings most), upgrading and knocking out attackers. Losing buildings, losing cats in attacks and sitting still drain it, fast at high stars.`;
 // five stars; the next one fills up as you earn purr
 const purrMeter = (side, label = true) => `<span class="purr" data-side="${side}" title="${PURR_TIP}">${label ? '<span class="pl">PURR</span>' : ''}<span class="pss">${'<i class="ps">★</i>'.repeat(5)}</span><span class="pb"></span></span>`;
+// ---------------------------------------------------------------- building facts for the hold-to-read tooltips
+const num2 = v => (Math.round(v * 100) / 100).toString();
+const pctOf = v => Math.round(v * 100) + '%';
+/** what a building of this type does at this level, as [key, icon, label, value] rows (the key lines up two levels) */
+function bFacts(type, lv, { boom = false } = {}) {
+  const d = BUILDINGS[type], i = Math.max(0, Math.min(d.maxLevel, lv) - 1), rows = [];
+  rows.push(['cap', '🐾', 'Holds', `${d.cap[i]} cats`]);
+  if (d.prod[i] > 0) rows.push(['prod', '🐱', 'Makes kittens', `${num2(d.prod[i] * (boom ? 1.5 : 1))}/s`]);
+  if (d.range) rows.push(['range', '🎯', 'Hairball range', `${d.range[i]}`]);
+  if (d.fireEvery) rows.push(['fire', '💥', 'Throws a hairball', `every ${d.fireEvery[i]}s`]);
+  if (d.atkBonus) rows.push(['atk', '⚔', 'All your cats hit', `+${pctOf(d.atkBonus[i])} harder`]);
+  if (d.catnipBonus) rows.push(['nip', '🌿', 'Your catnip refills', `+${pctOf(d.catnipBonus[i])} faster`]);
+  rows.push(['def', '🛡', 'Defense', `×${d.defense}`]);
+  return rows;
+}
+const factRows = rows => rows.map(([, ic, label, v, cls]) => `<div class="ht-r ${cls || ''}"><span>${ic} ${label}</span><b>${v}</b></div>`).join('');
+
 const purrBonus = n => n > 0 ? `+${Math.round(n * PURR.def * 100)}% 🛡 +${Math.round(n * PURR.atk * 100)}% ⚔ +${Math.round(n * PURR.spd * 100)}% 💨` : '';
 
 export class Hud {
@@ -124,6 +141,7 @@ export class Hud {
       <div class="emote-wheel hidden">${EMOTES.map(e => `<button data-e="${e.id}" title="${e.text}">${e.icon}</button>`).join('')}</div>
       <div class="bmenu hidden"></div>
       <div class="spell-tip hidden"></div>
+      <div class="hold-tip hidden"></div>
       <div class="toasts"></div>
       <div class="targeting-hint hidden"></div>
       <div class="countdown hidden"></div>
@@ -138,7 +156,7 @@ export class Hud {
       catFill: $('.catnip-fill'), catTxt: $('.catnip-txt'), spells: [...this.root.querySelectorAll('.spell[data-slot]')],
       purr: [...this.root.querySelectorAll('.purr')].map(e => ({ e, side: e.dataset.side, stars: [...e.querySelectorAll('.ps')], bonus: e.querySelector('.pb'), n: -1, v: -1 })),
       bMe: [...this.root.querySelectorAll('.pcard.me .bcount, .mystat .bcount')], bOpp: [...this.root.querySelectorAll('.pcard.opp .bcount')],
-      toasts: $('.toasts'), bmenu: $('.bmenu'), tip: $('.spell-tip'), wheel: $('.emote-wheel'), hint: $('.targeting-hint'), ping: $('.ping'),
+      toasts: $('.toasts'), bmenu: $('.bmenu'), tip: $('.spell-tip'), holdTip: $('.hold-tip'), wheel: $('.emote-wheel'), hint: $('.targeting-hint'), ping: $('.ping'),
     };
     this.root.querySelectorAll('.pct-btn').forEach(b => b.addEventListener('click', () => this.m.setPct(+b.dataset.p)));
     this.setPct(this.m.pct);
@@ -167,6 +185,126 @@ export class Hud {
     // tap the modifier icons to see what they do (phones have no hover tooltips)
     this.root.querySelectorAll('.rule-icons').forEach(el => el.addEventListener('click', () => this.toast(rules.map(r => `${r.icon} <b>${r.name}</b>: ${r.desc}`).join('<br>'))));
     this.bmenuFor = null;
+    this.holdFor = null;
+    this.bindMenuHold();
+  }
+
+  // ---------- hold to read: your buildings, and the menu's upgrade / change buttons ----------
+  /** the upgrade / change button under a press: { kind: 'up' } or { kind: 'conv', to } (with a selector to find it again) */
+  menuTarget(btn) {
+    if (!btn) return null;
+    if (btn.classList.contains('bm-up')) return { kind: 'up', sel: '.bm-up' };
+    if (btn.classList.contains('bm-yes') && this.convAsk) return { kind: 'conv', to: this.convAsk.t, sel: '.bm-yes' };
+    if (btn.dataset.t) return { kind: 'conv', to: btn.dataset.t, sel: `[data-t="${btn.dataset.t}"]` };
+    return null;
+  }
+  bindMenuHold() {
+    const bm = this.els.bmenu, BTN = '.bm-up, .bm-cv, .bm-conv button, .bm-yes';
+    let timer = null, sx = 0, sy = 0;
+    bm.addEventListener('pointerdown', ev => {
+      const t = this.menuTarget(ev.target.closest(BTN));
+      if (!t) return;
+      this.holdUsed = false; sx = ev.clientX; sy = ev.clientY;
+      clearTimeout(timer);
+      timer = setTimeout(() => { this.holdUsed = true; this.showHoldTip({ ...t, id: this.bmenuFor }); if (this.phone) vibrate(10); }, 380);
+    });
+    bm.addEventListener('pointermove', ev => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 12) clearTimeout(timer); });
+    // letting go anywhere ends it (the menu may have redrawn the button meanwhile)
+    this.endMenuHold = () => { clearTimeout(timer); if (this.holdFor && this.holdFor.kind !== 'b' && !this.holdFor.hover) this.hideHoldTip(); };
+    window.addEventListener('pointerup', this.endMenuHold);
+    window.addEventListener('pointercancel', this.endMenuHold);
+    // a hold only reads: it never presses the button
+    bm.addEventListener('click', ev => { if (this.holdUsed) { this.holdUsed = false; ev.stopPropagation(); ev.preventDefault(); } }, true);
+    bm.addEventListener('contextmenu', ev => ev.preventDefault());
+    // mouse: hovering a button shows the same thing
+    bm.addEventListener('pointerover', ev => {
+      if (ev.pointerType !== 'mouse') return;
+      const t = this.menuTarget(ev.target.closest(BTN));
+      if (t) this.showHoldTip({ ...t, id: this.bmenuFor, hover: true });
+    });
+    bm.addEventListener('pointerout', ev => {
+      if (ev.pointerType !== 'mouse' || !this.holdFor || !this.holdFor.hover) return;
+      if (!ev.relatedTarget || !ev.relatedTarget.closest || !ev.relatedTarget.closest(BTN)) this.hideHoldTip();
+    });
+  }
+  /** what: { kind: 'b' | 'up' | 'conv', id, to? } */
+  showHoldTip(what) {
+    this.holdFor = what;
+    this.holdT = 0;
+    this.drawHoldTip();
+  }
+  hideHoldTip() { this.holdFor = null; this.els.holdTip.classList.add('hidden'); }
+  drawHoldTip() {
+    const h = this.holdFor, V = this.m.view, tip = this.els.holdTip;
+    const b = h && V ? V.byId.get(h.id) : null;
+    // only for your own buildings
+    if (!b || b.owner !== this.me) return this.hideHoldTip();
+    const def = BUILDINGS[b.type], n = Math.floor(b.count);
+    const boom = !!(this.m.info && this.m.info.rules && this.m.info.rules.boom);
+    const free = bfxHas(b, 'build');
+    let html = '';
+    if (h.kind === 'b') {
+      const stars = (V.players[this.me] || {}).stars || 0;
+      const rows = bFacts(b.type, b.level, { boom });
+      rows.unshift(['in', '🐈', 'Cats inside', `${n} / ${b.cap}`]);
+      const p = rows.find(r => r[0] === 'prod');
+      if (p) {
+        if (bfxHas(b, 'frozen') || bfxHas(b, 'popup') || bfxHas(b, 'fort') || bfxHas(b, 'seal')) { p[3] = 'paused by a skill'; p[4] = 'bad'; }
+        else if (n >= b.cap) p[3] += ' · full';
+      }
+      if (stars) { const d = rows.find(r => r[0] === 'def'); d[3] += ` · ×${num2(def.defense * (1 + stars * PURR.def))} with your Purr`; }
+      const cost = def.upgradeCost[b.level - 1];
+      const next = cost == null ? (def.maxLevel > 1 ? '★ Max level' : '') : `⬆ Level ${b.level + 1} costs ${free ? 'nothing (Free Build)' : cost + ' 🐾'}`;
+      html = `<div class="ht-h">${def.icon} ${def.name} <span class="tt-lv">Lv ${b.level}${def.maxLevel > 1 ? '/' + def.maxLevel : ''}</span></div>
+        <div class="ht-d">${def.desc}</div><div class="ht-rows">${factRows(rows)}</div>${next ? `<div class="ht-f">${next}</div>` : ''}`;
+    } else if (h.kind === 'up') {
+      const cost = def.upgradeCost[b.level - 1];
+      if (cost == null) return this.hideHoldTip();
+      const now = bFacts(b.type, b.level, { boom }), after = bFacts(b.type, b.level + 1, { boom });
+      const rows = after.map(([k, ic, label, v]) => {
+        const was = (now.find(r => r[0] === k) || [])[3];
+        return was === v ? [k, ic, label, v, 'same'] : [k, ic, label, `${was} → <em>${v}</em>`, 'up'];
+      });
+      const c = free ? 0 : cost, purr = (PURR.upgrade[b.type] || [])[b.level - 1] || 0;
+      html = `<div class="ht-h">⬆ ${def.name}: Lv ${b.level} → <em>Lv ${b.level + 1}</em></div>
+        <div class="ht-rows">${factRows(rows)}</div>
+        <div class="ht-f">${c ? `Costs ${c} 🐾 from this building` : 'Free (Free Build)'}${purr ? ` · +${purr} Purr` : ''}${n < c ? ` · <span class="bad">you have ${n}</span>` : ''}</div>`;
+    } else {
+      const to = BUILDINGS[h.to];
+      if (!to || b.type === h.to) return this.hideHoldTip();
+      const c = free ? 0 : CONVERT_COST[h.to], left = Math.max(0, n - c);
+      const rows = bFacts(h.to, 1, { boom });
+      rows.unshift(['in', '🐈', 'Cats inside', `${left} / ${to.cap[0]}`]);
+      html = `<div class="ht-h">${def.icon} → ${to.icon} Change to ${to.name}</div>
+        <div class="ht-d">${to.desc}</div><div class="ht-rows">${factRows(rows)}</div>
+        <div class="ht-f">Starts again at level 1${b.level > 1 ? ` (this ${def.name} is level ${b.level})` : ''} · ${c ? `costs ${c} 🐾` : 'free (Free Build)'}${n < c ? ` · <span class="bad">you have ${n}</span>` : ''}</div>`;
+    }
+    if (html !== this.holdHtml || tip.classList.contains('hidden')) { tip.innerHTML = html; this.holdHtml = html; }
+    tip.classList.remove('hidden');
+    this.placeHoldTip(b);
+  }
+  /** building tips float above the building (your finger is on it); button tips sit above the menu */
+  placeHoldTip(b) {
+    const tip = this.els.holdTip, h = this.holdFor, W = window.innerWidth, H = window.innerHeight;
+    const w = tip.offsetWidth || 260, ht = tip.offsetHeight || 140;
+    const R = this.m.renderer, pad = this.phone && R.pad ? R.pad : { top: 60, bottom: 90, left: 6, right: 6 };
+    let x, y;
+    if (h.kind === 'b') {
+      const s = R.toScreen(b.x, b.y), rp = b.radius * R.view.scale;
+      x = s.x - w / 2;
+      y = s.y - rp * 1.6 - ht - 14;
+      if (y < pad.top + 2) y = s.y + rp + 34;
+    } else {
+      const m = this.els.bmenu.getBoundingClientRect();
+      const btn = this.els.bmenu.querySelector(h.sel);
+      if (!btn || this.els.bmenu.classList.contains('hidden')) return this.hideHoldTip();
+      const r = btn.getBoundingClientRect();
+      x = r.left + r.width / 2 - w / 2;
+      y = m.top - ht - 8;
+      if (y < pad.top + 2) y = m.bottom + 8;
+    }
+    tip.style.left = Math.max(6, Math.min(W - w - 6, x)) + 'px';
+    tip.style.top = Math.max(6, Math.min(H - ht - 6, y)) + 'px';
   }
 
   setPct(p) { this.root.querySelectorAll('.pct-btn').forEach(b => b.classList.toggle('on', +b.dataset.p === p)); }
@@ -285,6 +423,7 @@ export class Hud {
   update(V, dt) {
     this.acc += dt;
     if (this.bmenuFor != null) this.refreshBMenu(V);
+    if (this.holdFor && (this.holdT = (this.holdT || 0) + dt) > 0.2) { this.holdT = 0; this.drawHoldTip(); }
     if (this.acc < 0.066) return;
     this.acc = 0;
     const me = V.players[this.me], op = V.players[this.opp];
@@ -408,7 +547,7 @@ export class Hud {
     this.refreshBMenu(V, true);
     this.positionBMenu(b);
   }
-  closeBMenu() { this.bmenuFor = null; this.convAsk = null; this.els.bmenu.classList.add('hidden'); }
+  closeBMenu() { this.bmenuFor = null; this.convAsk = null; this.els.bmenu.classList.add('hidden'); if (this.holdFor && this.holdFor.kind !== 'b') this.hideHoldTip(); }
   positionBMenu(b) {
     const R = this.m.renderer;
     const s = R.toScreen(b.x, b.y);
@@ -471,8 +610,8 @@ export class Hud {
       <div class="bm-h">${def.icon} ${def.name} <span class="lv">Lv ${b.level}${def.maxLevel > 1 ? '/' + def.maxLevel : ''}</span><button class="bm-x">✕</button></div>
       <div class="bm-i">${info}</div>
       ${cost != null ? `<button class="bm-up ${n >= cost ? '' : 'off'}">⬆ Upgrade <span>${cost} 🐾</span></button>` : `<div class="bm-max">${def.maxLevel > 1 ? '★ Max level' : ''}</div>`}
-      ${convs.length ? `<div class="bm-conv-l">Convert to:</div><div class="bm-conv">${convs.map(c => `<button data-t="${c.t}" class="${n >= c.c ? '' : 'off'}" title="${BUILDINGS[c.t].name}: ${BUILDINGS[c.t].desc}">${BUILDINGS[c.t].icon}<span>${c.c}</span></button>`).join('')}</div>` : ''}
-      <div class="bm-tip">Tap another building to send cats · double-tap to upgrade</div>`;
+      ${convs.length ? `<div class="bm-conv-l">Convert to:</div><div class="bm-conv">${convs.map(c => `<button data-t="${c.t}" class="${n >= c.c ? '' : 'off'}" aria-label="Change to ${BUILDINGS[c.t].name}">${BUILDINGS[c.t].icon}<span>${c.c}</span></button>`).join('')}</div>` : ''}
+      <div class="bm-tip">Tap another building to send cats · double-tap to upgrade · hold a button to compare</div>`;
     m.querySelector('.bm-x').onclick = () => this.m.closeMenu();
     const up = m.querySelector('.bm-up');
     if (up) up.onclick = () => { this.m.upgrade(b.id); };
@@ -580,7 +719,11 @@ export class Hud {
     if (!w) { w = el('div', 'waiting'); this.root.appendChild(w); }
     w.innerHTML = '<div class="waiting-card"><div class="waiting-cat">📡</div><div>' + text + '</div></div>';
   }
-  destroy() { this.root.innerHTML = ''; this.root.className = 'hud'; }
+  destroy() {
+    if (this.endMenuHold) { window.removeEventListener('pointerup', this.endMenuHold); window.removeEventListener('pointercancel', this.endMenuHold); }
+    this.holdFor = null;
+    this.root.innerHTML = ''; this.root.className = 'hud';
+  }
 }
 
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

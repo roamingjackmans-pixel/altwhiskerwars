@@ -582,6 +582,18 @@ table.stats td:not(:first-child), table.stats th { text-align: center; font-weig
 .bm-tip { font-size: 11px; color: var(--ink2); margin-top: 8px; text-align: center; }
 .spell-tip { position: absolute; width: 260px; background: rgba(23,20,30,.98); color: var(--ink); border: 2px solid var(--line); border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.35); z-index: 6; }
 .tt-h { font-weight: 700; font-size: 16px; }
+/* hold-to-read: your buildings, and the building menu's upgrade / change buttons */
+.hold-tip { position: absolute; z-index: 7; width: 270px; max-width: calc(100vw - 12px); background: rgba(23, 20, 30, .97); color: var(--ink); border: 2px solid var(--mint); border-radius: 10px; padding: 9px 11px; pointer-events: none; box-shadow: 5px 5px 0 #000, 0 10px 26px rgba(0,0,0,.5); animation: popIn .15s; }
+.ht-h { font-weight: 700; font-size: 15px; line-height: 1.2; }
+.ht-h em, .ht-r em { font-style: normal; color: var(--mint); }
+.ht-d { font-size: 12px; line-height: 1.3; color: var(--ink2); margin: 3px 0 6px; }
+.ht-rows { display: flex; flex-direction: column; gap: 2px; }
+.ht-r { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; line-height: 1.3; }
+.ht-r b { text-align: right; }
+.ht-r.same { opacity: .6; }
+.ht-r.up b { color: var(--ink); }
+.ht-r.bad b, .ht-f .bad { color: var(--red); }
+.ht-f { margin-top: 6px; padding-top: 5px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--gold); }
 .tt-d { font-size: 13px; margin: 4px 0; }
 .tt-m { display: flex; gap: 10px; font-size: 12px; color: var(--ink2); flex-wrap: wrap; align-items: center; }
 .tt-k kbd { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 5px; background: #3a2c4a; color: #fff; font: 700 11px var(--font); text-align: center; }
