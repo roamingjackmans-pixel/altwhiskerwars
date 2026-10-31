@@ -1402,20 +1402,39 @@ export const AI_LEVELS = {
 };
 
 // ---------------- Campaign ----------------
+// One level for every hero, getting harder as you go. Every two-player map is used once; the five 'random' levels
+// each get their own fixed map (the level's seed makes it), so they play the same every time.
+// boss: the last four rivals wear a crown and bring their skills one level higher.
 export const CAMPAIGN = [
-  { id: 1,  name: 'First Whiskers',    map: 'meadow',   ai: 'easy',   enemy: 'barnaby', reward: 300, tip: 'Drag from your cottage to a stray building to send cats.' },
-  { id: 2,  name: 'Tower Trouble',     map: 'rooftops', ai: 'easy',   enemy: 'mortar',   reward: 300, tip: 'Towers shoot cats walking past. Send a big group at once!' },
-  { id: 3,  name: 'Snowball Fight',    map: 'snowy',    ai: 'easy',   enemy: 'glacia',   reward: 360, tip: 'Tap your cottage to upgrade it. Upgraded cottages make kittens faster.' },
-  { id: 4,  name: 'Garden Party',      map: 'moonlit',  ai: 'normal', enemy: 'honeydew', reward: 390, tip: 'Catnip is scarce. Gardens refill it much faster, and skills win battles!' },
-  { id: 5,  name: 'Dockside Dash',     map: 'docks',    ai: 'normal', enemy: 'nova',     reward: 420, tip: 'Forges make all your cats hit harder.' },
-  { id: 6,  name: 'Sugar Rush',        map: 'candy',    ai: 'normal', enemy: 'pebble',   reward: 450, tip: 'The Grand Cat Tree is worth fighting for.' },
-  { id: 7,  name: 'Ninja Night',       map: 'maze',     ai: 'hard',   enemy: 'rift',     reward: 510, tip: 'Cats walk around hedges and ponds. Drag onto a building to see the road they will take.' },
-  { id: 8,  name: 'Chonk Wall',        map: 'ridge',    ai: 'hard',   enemy: 'ironclaw', reward: 540, tip: 'Purr Power stars make your buildings much tougher. Never attack into a rival with more stars than you.' },
-  { id: 9,  name: 'Space Race',        map: 'alleys',   ai: 'hard',   enemy: 'orbit',    reward: 600, tip: 'Swipe across several of your buildings to send from all of them at once.' },
-  { id: 10, name: 'Mad Science',       map: 'archipelago', ai: 'hard', enemy: 'tickstorm', reward: 660, tip: 'Bridges are chokepoints. Spread out so one area spell cannot hit everything.' },
-  { id: 11, name: 'Witching Hour',     map: 'chocoriver', ai: 'insane', enemy: 'cackle',   reward: 750, tip: 'The enemy grows stronger. So do you. Convert buildings to change their job.' },
-  { id: 12, name: 'Many Faces',        map: 'hedgerow', ai: 'insane', enemy: 'riddle',   reward: 1200, tip: 'The final boss. Show them who the real top cat is!' },
+  { id: 1,  name: 'First Whiskers',     map: 'meadow',      ai: 'easy',   enemy: 'barnaby',     reward: 300,  tip: 'Drag from your cottage to a stray building to send cats.' },
+  { id: 2,  name: 'Tower Trouble',      map: 'rooftops',    ai: 'easy',   enemy: 'mortar',      reward: 300,  tip: 'Towers shoot cats walking past. Send a big group at once!' },
+  { id: 3,  name: 'Snowball Fight',     map: 'snowy',       ai: 'easy',   enemy: 'glacia',      reward: 330,  tip: 'Tap your cottage to upgrade it. Upgraded cottages make kittens faster.' },
+  { id: 4,  name: 'Builder\'s Yard',     map: 'ponds',       ai: 'easy',   enemy: 'hammerpaw',   reward: 360,  tip: 'Tap one of your buildings to change its job: towers up front, forges and gardens at the back.' },
+  { id: 5,  name: 'Lantern Moat',       map: 'moat',        ai: 'easy',   enemy: 'morrow',      reward: 390,  tip: 'You can\'t see how many cats a rival has inside (?). Watch the squads that leave and arrive to guess.' },
+  { id: 6,  name: 'Garden Party',       map: 'moonlit',     ai: 'normal', enemy: 'honeydew',    reward: 420,  tip: 'Catnip is scarce. Gardens refill it much faster, and skills win battles!' },
+  { id: 7,  name: 'Dockside Dash',      map: 'docks',       ai: 'normal', enemy: 'nova',        reward: 450,  tip: 'Forges make all your cats hit harder.' },
+  { id: 8,  name: 'Iron Bridges',       map: 'fjord',       ai: 'normal', enemy: 'ironclaw',    reward: 480,  tip: 'Only two bridges cross the fjord. Whoever holds them controls the battle.' },
+  { id: 9,  name: 'Ninja Night',        map: 'maze',        ai: 'normal', enemy: 'rift',        reward: 510,  tip: 'Cats walk around hedges and ponds. Drag onto a building to see the road they will take.' },
+  { id: 10, name: 'Sugar Rush',         map: 'candy',       ai: 'normal', enemy: 'pebble',      reward: 540,  tip: 'The Grand Cat Tree is worth fighting for.' },
+  { id: 11, name: 'Into the Wild',      map: 'random',      ai: 'normal', enemy: 'willow',      reward: 570,  tip: 'Uncharted land! Grab the strays closest to you before your rival does.' },
+  { id: 12, name: 'Sandy Shores',       map: 'piers',       ai: 'normal', enemy: 'saffron',     reward: 600,  tip: 'Rain slows every cat walking under it. Send your squads around the clouds.' },
+  { id: 13, name: 'Royal Ball',         map: 'gumdrops',    ai: 'hard',   enemy: 'marigold',    reward: 640,  tip: 'Hush stops everyone\'s skills for a few seconds. Cast your big one first, or wait it out.' },
+  { id: 14, name: 'Mad Science',        map: 'archipelago', ai: 'hard',   enemy: 'tickstorm',   reward: 680,  tip: 'Bridges are chokepoints. Spread out so one area spell cannot hit everything.' },
+  { id: 15, name: 'Space Race',         map: 'alleys',      ai: 'hard',   enemy: 'orbit',       reward: 720,  tip: 'Swipe across several of your buildings to send from all of them at once.' },
+  { id: 16, name: 'Moth Caves',         map: 'molehills',   ai: 'hard',   enemy: 'mossbeard',   reward: 760,  tip: 'Circle of Life can save a building once, with 20 fresh cats. Bring a second wave.' },
+  { id: 17, name: 'Trial by Fire',      map: 'chimneys',    ai: 'hard',   enemy: 'cinder',      reward: 800,  tip: 'Spread your squads out: a Ring of Fire hits everything inside one circle.' },
+  { id: 18, name: 'Switcheroo',         map: 'random',      ai: 'hard',   enemy: 'jinx',        reward: 850,  tip: 'Don\'t pile every cat into one building: Swap! can trade it away.' },
+  { id: 19, name: 'Haunted Hollow',     map: 'random',      ai: 'hard',   enemy: 'wispera',     reward: 900,  tip: 'Ghost cats ignore towers. Keep a few cats at home to meet them.' },
+  { id: 20, name: 'Mind Games',         map: 'ridge',       ai: 'hard',   enemy: 'whirl',       reward: 950,  tip: 'Purr Power stars make your buildings much tougher. Never attack into a rival with more stars than you.' },
+  { id: 21, name: 'Bone Yard',          map: 'random',      ai: 'insane', enemy: 'bones',       reward: 1000, tip: 'Panic empties a building in a moment. Keep a few strong buildings, not one huge one.', boss: true, seed: 1372 },
+  { id: 22, name: 'Witching Hour',      map: 'chocoriver',  ai: 'insane', enemy: 'cackle',      reward: 1100, tip: 'Copy Cat steals the last skill you cast. Save your biggest one for the right moment.', boss: true },
+  { id: 23, name: 'Legend of the Peak', map: 'random',      ai: 'insane', enemy: 'thunderpurr', reward: 1200, tip: 'Fortress turns all his buildings into towers for a few seconds. Wait it out, then strike.', boss: true },
+  { id: 24, name: 'Many Faces',         map: 'hedgerow',    ai: 'insane', enemy: 'riddle',      reward: 1500, tip: 'The final boss. Show them who the real top cat is!', boss: true },
 ];
+/** a campaign level's battle seed (it also makes the map for the 'random' levels; a level can pick its own) */
+export const campaignSeed = l => l.seed ?? 1000 + l.id * 17;
+// the 12-level campaign: old level number -> the new level with the same rival, so saved stars carry over
+export const LEGACY_CAMPAIGN = { 1: 1, 2: 2, 3: 3, 4: 6, 5: 7, 6: 10, 7: 9, 8: 8, 9: 15, 10: 14, 11: 22, 12: 24 };
 
 // ---------------- Achievements ----------------
 export const ACHIEVEMENTS = [
