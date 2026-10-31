@@ -4,9 +4,9 @@ A variant of [Whisker Wars](https://github.com/roamingjackmans-pixel/whiskerwars
 cat-sending battles, with four big changes:
 
 1. **Hidden armies.** Nobody can see how many cats are inside a rival's buildings, the computer included (they show
-   **?**). Only two heroes have a skill that looks inside: Agent Velvet's **Spy Eye** (every building in an area) and
-   Chef Grimsby's **Food Poisoning** (the poisoned building). Everyone else estimates from what they saw.
-2. **New heroes with levelled skills.** 12 heroes, each with exactly 4 skills and no passive. A skill's slot sets its
+   **?**). Only two heroes have a skill that looks inside: Doctor Whirl's **Spy Eye** (every building in an area) and
+   Morrow's **Food Poisoning** (the poisoned building). Everyone else estimates from what they saw.
+2. **New heroes with levelled skills.** 24 heroes, each with exactly 4 skills and no passive. A skill's slot sets its
    catnip cost (20 / 40 / 60 / 80) and cooldown; every skill has 5 levels bought with 🐟 fish (300 / 750 / 1,500 /
    3,000) that shorten the cooldown and strengthen the effect.
 3. **Purr Power is army morale and it matters a lot.** 0-5 stars from purr points (500 / 1,000 / 2,000 / 4,000 /
@@ -30,18 +30,33 @@ same site without touching each other.
 
 | Clan | Hero | Skills (slot 1-4) |
 | --- | --- | --- |
-| 👑 Royal Court | Sir Pounce (free) | Stone Paws (building defense ×1.25-1.35), Zoom Boots (everyone walking in an area runs faster), Lucky Star (+1 purr star, purr can't drop), Sneak Attack (30-45 cats hit every enemy building at once) |
-| | Corporal Kibble (free) | Pop-up Tower, Boom Hairballs (tower shots explode), Tight Formation (next squad packed and faster), Catnip Bomb (75-95% of a garrison + nearby squads) |
-| | Baron Bristle | Shackles (building can't send), Even Purr (everyone's purr becomes the average), Battle Fury (area attack/speed boost), Ring of Fire (area knockout, up to 100-1000 cats) |
-| 🔧 Tech Whiskers | Captain Zap | Beam Me Up (teleport 50-75% between your buildings), Cloak (invisible squads), U-Turn Field, Drop Pods (75-100 cats arrive over a few seconds) |
-| | 👁 Agent Velvet | Spy Eye (see counts in an area, slows their kittens), Fog Cloud, Hypnotize (70-80% of a garrison walks to you), Zap Fence |
-| | Professor Paradox | Mind Reader (see where enemy squads are heading), Rewind (squads jump back in time), Shortcut (next squad tunnels there in 3.5s), Chain Reaction |
-| 🌙 Moon Mystics | Princess Paprika | Kitten Boom, Hush (nobody can use skills), Paper Walls (building loses its defense briefly), Sweet Talk (30-40 enemy cats switch sides) |
-| | Snowpaw | Deep Freeze (building), Flying Kittens (next squad flies over terrain), Ring of Frost (everyone in an area frozen), Tornado |
-| | Miss Mischief | Zoomies Vortex, Purr Freeze (everyone's purr locked), Chicken Out (enemy squads lose their bonuses), Cat Magnet |
-| 🗑️ Alley Cats | Lord Graveclaw | Crumble (building drops a level), Second Life (revive cats lost in the last 5s), Go Home (area: everyone turns back), Panic (garrison flees) |
-| | 👁 Chef Grimsby | Soul Snatcher (tower range up, kills join it), Untouchable, Slow-Mo Ring, Food Poisoning (garrison sickens, spreads, count revealed) |
-| | Hexley | Defectors (enemy kittens walk to you), Bounce Shield, Swap! (trade an enemy building for one of yours), Echo Hex (damage copied to nearby buildings) |
+| 👑 Royal Court | Sir Barnaby (free) | Stone Paws (building defense ×1.25-1.35), Zoom Boots (everyone walking in an area runs faster), Lucky Star (+1 purr star, purr can't drop), Sneak Attack (30-45 cats hit every enemy building at once) |
+| | Major Mortar (free) | Pop-up Tower, Boom Hairballs (tower shots explode), Tight Formation (next squad packed and faster), Catnip Bomb (75-95% of a garrison + nearby squads) |
+| | Hammerpaw | Free Build (next upgrade or convert costs nothing), Kitten Express (every cottage's kittens go to one building for 8-12s), Fair Shares (one player's buildings all get the average count), Golden Purr (5 stars for 3-5s) |
+| | General Cinder | Shackles (building can't send), Even Purr (everyone's purr becomes the average), Battle Fury (area attack/speed boost), Ring of Fire (area knockout, up to 100-1000 cats) |
+| | Elder Mossbeard | Snatch Squad (25% of a garrison walks to you), Circle of Life (a building that falls drops a level and gets 20 cats instead), Slug Army (slowing slime trail, slugs split when hit), Moth Dome (growing dome knocks out attackers, eats the garrison) |
+| | King Thunderpurr | To Arms! (cats sent from a building hit harder), Teeny Tiny (enemy building's cats fight and walk weaker), Kitty Cannon (cats fly on cannonballs: fast, strong, untouchable), Fortress (every building a top tower for 5-7s) |
+| 🔧 Tech Whiskers | Commander Nova | Beam Me Up (teleport 50-75% between your buildings), Cloak (invisible squads), U-Turn Field, Drop Pods (75-100 cats arrive over a few seconds) |
+| | Count Tickstorm | Mind Reader (see where enemy squads are heading), Rewind (squads jump back in time), Shortcut (next squad tunnels there in 3.5s), Chain Reaction |
+| | Rift | Stash (squads hide, get copied, wait for a friend), Laser Wall (next squad's road becomes a deadly wall), Bouncy Heads (squads become balls that hit hard but can't capture), Copycat (squads in an area are copied as yours, marching back) |
+| | Orbit | Saucer Strike (a saucer zaps enemy cats one by one), Turbo Pulse (your squads speed up), Static Fluff (shielded squads knock out what touches them), Zero-G (enemy squads float, then 30-50% fall) |
+| | 👁 Doctor Whirl | Spy Eye (see counts in an area, slows their kittens), Fog Cloud, Hypnotize (5s to send 70-80% of a garrison wherever you like), Zap Dome (cats crossing its edge are knocked out) |
+| 🌙 Moon Mystics | Glacia | Cold Snap (building drops to level 1 for a while), Frost Wave (next squad pushes a freezing wave), Big Freeze (rivals' screens ice over, no catnip), Hailstorm (area wipe + building damage) |
+| | Madame Pebble | Zoomies Vortex, Purr Freeze (everyone's purr locked), Chicken Out (enemy squads lose their bonuses), Cat Magnet (any building pulls in every nearby squad) |
+| | Willow | Quicksand (enemy cats near a building slow down), Pack Up (next send to your building moves every cat at once), Gust (wind lane speeds cats one way, slows the other), Sand Worm (eats a garrison and nearby squads, then attacks with them) |
+| | Saffron | Rage Totem (extra forge for cats and buildings in an area), Rolling Boulders (20-40 cats hit harder but can't capture), Sleepy Rain (slows enemies), Sandstorm (traps enemies, some turn into wild sand cats) |
+| | Queen Marigold | Kitten Boom, Hush (nobody can use skills), Paper Walls (building loses its defense briefly), Sweet Talk (30-40 enemy cats switch sides) |
+| | Honeydew | Deep Freeze (building), Bee Lift (next squad flies over terrain), Ring of Frost (everyone in an area frozen), Tornado |
+| | Wispera | Haunted House (temporary ghost defenders), Possession (an enemy building is yours for a while), Spirited Away (attacks on you hit a building you pick), Ghost Army (30-45 untouchable ghosts march into any building) |
+| 🗑️ Alley Cats | 👁 Morrow | Soul Snatcher (tower range up, kills join it), Untouchable, Slow-Mo Ring, Food Poisoning (garrison sickens, spreads, count revealed) |
+| | Ironclaw | Iron Seal (building loses a share of its cats every second), Mine Field (enemy cats become mines), Purr Thief (steal up to one star), Soul Harvest (cats knocked out nearby come back as yours) |
+| | Baron Bones | Crumble (building drops a level), Second Life (revive cats lost in the last 5s), Go Home (area: everyone turns back), Panic (garrison flees) |
+| | Cackle | Bone Rush (skeletons attack an enemy building), Copy Cat (use a rival's last skill once), Blood Pact (lost cats earn purr), Big Cauldron (an enemy building becomes a sealed level-1 stray) |
+| | Jinx | Defectors (enemy kittens walk to you), Charm Shield (no attacks allowed, attackers bounce home), Swap! (trade an enemy building for one of yours), Echo Hex (damage copied to nearby buildings) |
+| | Riddle | Each slot is a random hero's skill for that slot, rolled at the start of every battle |
+
+Old saves keep their progress: each hero from the 12-hero roster became the new hero with the same skills (unlocks,
+main hero and skill levels carry over).
 
 All the numbers live in `public/shared/data.js` (`HEROES`, `SLOTS`, `PURR`); the skills themselves are in
 `applySpell` in `public/shared/game.js`. The computer uses every skill (`public/shared/ai.js`) and guesses hidden
@@ -64,10 +79,10 @@ Open http://localhost:8080. To test online play by yourself, open a second brows
 | Online, 2-4 players | 5-number room codes + invite links (`?room=CODE`), lobby for 2, 3 or 4 players with hero/map/time pick (only maps for that many players), ready check, emotes, rematch, ping display, 20-second reconnect if someone's connection drops (with 3-4 players, someone who doesn't come back is knocked out and the battle carries on) |
 | Friends | Every player has an 8-number friend code. Add friends by code, or with one tap on the player you just battled in the lobby. Friends with the game open show as online. The lobby lists them at the top (with people you played recently): tap **Invite** and they get a popup that drops them straight into your room |
 | Fun modifiers | Zoomies (fast cats), Catnip Frenzy, Kitten Boom, Big Start — toggle in the lobby or practice setup |
-| 12 heroes | 4 clans, each hero has 4 skills (48 skills), each skill levels 1-5 with fish; heroes unlocked with fish coins earned by playing |
+| 24 heroes | 4 clans, each hero has 4 skills (96 skills), each skill levels 1-5 with fish; heroes unlocked with fish coins earned by playing |
 | 5 building types | Kitten Cottage (5 levels), Scratch Tower, Yarn Forge, Catnip Garden, Grand Cat Tree. Upgrade or convert any time |
 | Maps | 35 maps. 2 players: 6 open fields and 13 with terrain (ponds, rivers, islands joined by bridges, hedges, walls, snow ridges, dirt mounds) that make cats walk the long way round. 3 players: 3 compact maps that repeat three ways around the middle, and 5 that fill the whole field without being symmetric (each seat has a different spot, kept fair by equal road lengths and tuned strays). 4 players: 8 maps mirrored into every corner. Open and terrain maps for each player count. Random maps (2 players) get lumps and ponds too. Each player's view is turned so their own base is at the bottom / left |
-| Core mechanics | Drag-to-send (the arrow shows the road your cats will take), swipe across buildings for multi-send, 25/50/75/100% send, field battles between squads, towers, Purr Power stars (army morale: +25% defense, +5% attack, +10% speed per star), catnip skill energy (starts at 0). A building taken from the other player drops one upgrade level. Nobody can see how many cats are inside another player's buildings (they show **?**, strays stay visible; the AI only guesses too): only Agent Velvet (Spy Eye) and Chef Grimsby (Food Poisoning) can look inside. Unowned towers shoot at everyone's cats until someone takes them. Unowned buildings grow back to their starting cats a few seconds after a failed attack (bigger ones faster: a full refill takes about 24 s); your own towers grow back lost cats at the kitten rate; towers, forges and gardens never shrink on their own |
+| Core mechanics | Drag-to-send (the arrow shows the road your cats will take), swipe across buildings for multi-send, 25/50/75/100% send, field battles between squads, towers, Purr Power stars (army morale: +25% defense, +5% attack, +10% speed per star), catnip skill energy (starts at 0). A building taken from the other player drops one upgrade level. Nobody can see how many cats are inside another player's buildings (they show **?**, strays stay visible; the AI only guesses too): only Doctor Whirl (Spy Eye) and Morrow (Food Poisoning) can look inside. Unowned towers shoot at everyone's cats until someone takes them. Unowned buildings grow back to their starting cats a few seconds after a failed attack (bigger ones faster: a full refill takes about 24 s); your own towers grow back lost cats at the kitten rate; towers, forges and gardens never shrink on their own |
 | Solo | Interactive tutorial, 12-level campaign with 3-star ratings, practice against 1-3 computer cats at 4 difficulties, live AI battle on the menu background |
 | Progression | Coins, XP & levels, daily gift, first-win bonus, 13 achievements, 15 furs + 12 hats (your whole army wears them), match history |
 | Polish | Procedural art, synthesized music & SFX, spell VFX, screen shake, keyboard shortcuts |
@@ -125,7 +140,8 @@ node tools/simtest.mjs 40     # AI-vs-AI crash test on all maps
 node tools/maptest.mjs        # every map: clear ground under buildings, every road walkable, fair to both sides
 node tools/maptest.mjs ridge  # ...and draws the named map(s) as text
 node tools/balance.mjs        # round-robin hero win rates (both sides Hard AI)
-node tools/probe.mjs velvet   # one hero vs everyone (add a spell id to disable it)
+node tools/probe.mjs whirl    # one hero vs everyone (add a spell id to disable it)
+node tools/skilltest.mjs      # casts every hero's every skill in a live battle
 node tools/relaytest.mjs      # tests the WebSocket relay with a host and 3 guests (server must be running)
 node tools/rejointest.mjs     # tests reconnecting into a room (server must be running)
 node tools/lobbytest.mjs      # tests the 2-4 player lobby/match message protocol in memory

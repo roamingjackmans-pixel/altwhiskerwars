@@ -92,17 +92,16 @@ export const TOWER_REGROW = { rate: BUILDINGS.cottage.prod[0], delay: 4 };
 export const STRAY_REGROW = { refill: 24, min: 0.3, delay: 4 };
 export const strayRegrowRate = full => Math.max(STRAY_REGROW.min, full / STRAY_REGROW.refill);
 // Nobody can see how many cats are inside another player's buildings (strays stay visible), not even the computer.
-// Only two heroes have a skill that shows them: Agent Velvet (Spy Eye) and Chef Grimsby (Food Poisoning).
-// Prof. Purrcival's Auto-Turret spell bolts on a fixed-size hairball turret
+// Only two heroes have a skill that shows them: Doctor Whirl (Spy Eye) and Morrow (Food Poisoning).
 export const TURRET = { range: 195, fireEvery: 0.95 };
 // cost (in cats) to convert a building into another type (resets to level 1)
 export const CONVERT_COST = { cottage: 10, tower: 20, forge: 20, garden: 20 };
 
 // ---------------- Clans & Heroes ----------------
 export const CLANS = {
-  royal:  { name: 'Royal Court',   color: '#ffcf4d', icon: '👑', desc: 'Knights and nobles of the Velvet Cushion.' },
+  royal:  { name: 'Royal Court',   color: '#ffcf4d', icon: '👑', desc: 'Knights, builders and old legends of the Velvet Cushion.' },
   tech:   { name: 'Tech Whiskers', color: '#3de0ff', icon: '🔧', desc: 'Gadgets, beams and things from outer space.' },
-  mystic: { name: 'Moon Mystics',  color: '#b08cff', icon: '🌙', desc: 'Wild magic: frost, storms and charm.' },
+  mystic: { name: 'Moon Mystics',  color: '#b08cff', icon: '🌙', desc: 'Queens, witches and wild nature magic.' },
   alley:  { name: 'Alley Cats',    color: '#ff8a3d', icon: '🗑️', desc: 'Spooky tricksters of the back streets.' },
 };
 
@@ -117,21 +116,22 @@ export const SLOTS = [
 // how each per-level number reads on the upgrade button
 export const LV_INFO = {
   cd: ['Cooldown', 's'], dur: ['Lasts', 's'], r: ['Area', 'n'], n: ['Cats', 'n'], cap: ['Up to', 'n'], pct: ['Share', '%'],
-  mul: ['Defense', 'x'], spd: ['Speed', '+%'], atk: ['Attack', 'x%'], slow: ['Enemy speed', '%'], prod: ['Kitten-making', '%'],
+  mul: ['Defense', 'x'], spd: ['Speed', '+%'], atk: ['Attack', 'x%'], slow: ['Speed', '%'], prod: ['Kitten-making', '%'],
   boost: ['Kitten-making', 'x'], tlv: ['Tower level', 'n'], splash: ['Blast', 'n'], fill: ['Arrive in', 's'], back: ['Rewind', 's'],
   drop: ['Defense lost', '%'], delay: ['Delay', 's'], range: ['Range', '+%'], rate: ['Cats lost', '/s'], chance: ['Spread chance', '%'],
-  bld: ['Buildings', 'n'], slowx: ['Slower', 'x'],
+  bld: ['Buildings', 'n'], slowx: ['Slower', 'x'], mult: ['Hits', 'x'], clone: ['Extra copies', '%'], purr: ['Purr per cat', 'n'],
+  split: ['Come back', '%'],
 };
 
 const P_ = v => Math.round(v * 100) + '%';
 const UP = v => '+' + Math.round((v - 1) * 100) + '%';
-// target kinds: own | enemy | neutral | notown | area | global (see game.js)
+// target kinds: own | enemy | neutral | notown | owned (any player's) | any | area | global (see game.js)
 const H = list => list.map(h => ({ ...h, spells: h.spells.map((s, k) => ({ ...s, slot: k, cost: SLOTS[k].cost, cd: SLOTS[k].cd[0], lv: { cd: SLOTS[k].cd, ...(s.lv || {}) } })) }));
 export const HEROES = H([
-  // ---------------- Royal Court
+  // ================================================================ Royal Court
   {
-    id: 'pounce', name: 'Sir Pounce', title: 'Shield of the Hearth', clan: 'royal', cost: 0, fur: 'ginger', art: 'whiskers', role: 'Defense · Easy',
-    blurb: 'A steady knight who keeps your cottages standing and your army in good spirits. Great for learning.',
+    id: 'barnaby', name: 'Sir Barnaby', title: 'Keeper of the Castle Walls', clan: 'royal', cost: 0, fur: 'gray', role: 'Defense · Easy',
+    blurb: 'An armoured knight in a castle-tower crown. Holds the walls, cheers the army on, then strikes everywhere at once.',
     spells: [
       { id: 'stonepaws', name: 'Stone Paws', icon: '🛡️', target: 'own', fx: 'stone', lv: { mul: [1.25, 1.27, 1.29, 1.32, 1.35], dur: [5, 7, 8, 9, 10] },
         desc: s => `Your building defends ×${s.mul} as well for ${s.dur}s.` },
@@ -144,8 +144,8 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'kibble', name: 'Corporal Kibble', title: 'Master of Towers', clan: 'royal', cost: 0, fur: 'orange', art: 'chonk', role: 'All-round · Easy',
-    blurb: 'Builds towers wherever trouble shows up, then makes them go boom.',
+    id: 'mortar', name: 'Major Mortar', title: 'The Old Artillery Cat', clan: 'royal', cost: 0, fur: 'calico', role: 'Defense · Easy',
+    blurb: 'A veteran gunner with goggles and a steel helmet. Builds towers wherever trouble shows up, then makes them go boom.',
     spells: [
       { id: 'popup', name: 'Pop-up Tower', icon: '🗼', target: 'own', fx: 'popup', lv: { dur: [6, 7, 7.5, 8, 8.5], tlv: [1, 2, 3, 3, 3] },
         desc: s => `A cottage, forge or garden of yours turns into a tower (up to level ${s.tlv}) for ${s.dur}s: it shoots and defends like one, but stops its normal job meanwhile.` },
@@ -158,12 +158,26 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'bristle', name: 'Baron Bristle', title: 'The Warmonger', clan: 'royal', cost: 11500, fur: 'calico', art: 'clawbeard', role: 'Attack · Hard',
+    id: 'hammerpaw', name: 'Hammerpaw', title: 'The Royal Builder', clan: 'royal', cost: 2000, fur: 'orange', role: 'Economy · Medium',
+    blurb: 'Hard hat on, pencil behind the ear. Builds for free, moves whole villages of kittens and keeps everyone in line.',
+    spells: [
+      { id: 'builder', name: 'Free Build', icon: '🔨', target: 'own', fx: 'build',
+        desc: () => 'Tap one of your buildings: its next upgrade or convert (within 30s) costs no cats at all.' },
+      { id: 'prodshift', name: 'Kitten Express', icon: '🚚', target: 'own', fx: 'transfer', lv: { dur: [8, 9, 10, 11, 12] },
+        desc: s => `For ${s.dur}s every kitten your other cottages make appears in this building instead.` },
+      { id: 'evenout', name: 'Fair Shares', icon: '⚖️', target: 'owned', fx: 'mean',
+        desc: () => 'Pick any player\'s building, yours or a rival\'s: every building that player owns ends up with the same number of cats (their average).' },
+      { id: 'goldpurr', name: 'Golden Purr', icon: '🏆', target: 'global', fx: 'gold', lv: { dur: [3, 3.5, 4, 4.5, 5] },
+        desc: s => `Your Purr Power shines at the full 5 stars for ${s.dur}s, then goes back to what it was.` },
+    ],
+  },
+  {
+    id: 'cinder', name: 'General Cinder', title: 'The Fire Marshal', clan: 'royal', cost: 11500, fur: 'ginger', role: 'Attack · Hard',
     blurb: 'Plays with fire, and with everybody\'s nerves. Brilliant when you\'re behind.',
     spells: [
       { id: 'shackles', name: 'Shackles', icon: '⛓️', target: 'enemy', fx: 'shackle', lv: { dur: [8, 9, 10, 11, 12] },
         desc: s => `An enemy building can't send any cats out for ${s.dur}s.` },
-      { id: 'evenpurr', name: 'Even Purr', icon: '⚖️', target: 'global', fx: 'even',
+      { id: 'evenpurr', name: 'Even Purr', icon: '🤝', target: 'global', fx: 'even',
         desc: () => 'Every player\'s Purr Power becomes the average of everyone\'s. Cheap, and huge when your rival is far ahead.' },
       { id: 'fury', name: 'Battle Fury', icon: '😤', target: 'area', fx: 'fury', lv: { atk: [1.5, 1.55, 1.6, 1.65, 1.75], spd: [1.1, 1.15, 1.2, 1.25, 1.3], r: [125, 137, 150, 162, 175] },
         desc: s => `Every cat walking in the area hits ×${s.atk} as hard and runs ${UP(s.spd)} faster until it arrives. Anyone's cats, so aim carefully.` },
@@ -171,14 +185,42 @@ export const HEROES = H([
         desc: s => `A ring of fire spreads out from the spot and knocks out up to ${s.cap} enemy cats walking in the area. Knockouts from it give no Purr Power.` },
     ],
   },
-  // ---------------- Tech Whiskers
   {
-    id: 'zap', name: 'Captain Zap', title: 'Star Pilot', clan: 'tech', cost: 750, fur: 'siamese', art: 'astro', role: 'All-round · Easy',
+    id: 'mossbeard', name: 'Elder Mossbeard', title: 'Hermit of the Deep Caves', clan: 'royal', cost: 12500, fur: 'graytabby', role: 'All-round · Medium',
+    blurb: 'The oldest cat around. Lived for years in the caves with slugs and moths for company. Wants peace, in his own way.',
+    spells: [
+      { id: 'maneuver', name: 'Snatch Squad', icon: '🫳', target: 'notown', fx: 'snatch',
+        desc: () => '25% of the cats in an enemy or stray building switch to your side and walk to your nearest building.' },
+      { id: 'lifecycle', name: 'Circle of Life', icon: '♻️', target: 'own', fx: 'cycle', lv: { dur: [10, 11, 12, 13.5, 15] },
+        desc: s => `For ${s.dur}s, if attackers knock every cat out of your building it doesn't fall: it drops one level and 20 fresh cats pop up inside. Level 2+ buildings only.` },
+      { id: 'slugs', name: 'Slug Army', icon: '🐛', target: 'area', fx: 'slug', lv: { r: [100, 107, 115, 122, 130], slow: [0.6, 0.57, 0.55, 0.52, 0.5], split: [0.25, 0.3, 0.35, 0.4, 0.5] },
+        desc: s => `Your cats walking in the area turn into slugs until they arrive. They leave a sticky trail that slows enemy cats to ${P_(s.slow)} speed, and when slugs are knocked out some split in two and keep going (about ${P_(s.split)} come back).` },
+      { id: 'moths', name: 'Moth Dome', icon: '🦋', target: 'own', fx: 'moths', lv: { cap: [60, 70, 80, 90, 100], r: [150, 160, 170, 185, 200] },
+        desc: s => `A dome of moths grows around your building (up to ${s.r} wide) and knocks out enemy cats under it, up to ${s.cap}. It eats 2 of the building's cats a second and ends when they run out. A cottage makes no kittens meanwhile.` },
+    ],
+  },
+  {
+    id: 'thunderpurr', name: 'King Thunderpurr', title: 'The Legend of Old Battles', clan: 'royal', cost: 19500, fur: 'golden', role: 'All-round · Medium',
+    blurb: 'The warlord from the old stories, in a winged golden helmet. Young cats still try to fight like him. Few can.',
+    spells: [
+      { id: 'toarms', name: 'To Arms!', icon: '🗡️', target: 'own', fx: 'arms', lv: { dur: [6, 7, 8, 9, 10], atk: [1.3, 1.35, 1.4, 1.45, 1.5] },
+        desc: s => `For ${s.dur}s every cat sent out of your building carries extra weapons and hits ×${s.atk} as hard.` },
+      { id: 'shrink', name: 'Teeny Tiny', icon: '🔍', target: 'enemy', fx: 'shrink', lv: { dur: [8, 9, 10, 11, 12], atk: [0.8, 0.77, 0.75, 0.72, 0.7], slow: [0.8, 0.77, 0.75, 0.72, 0.7] },
+        desc: s => `For ${s.dur}s an enemy building shrinks: its cats fight at only ${P_(s.atk)} strength, and cats it sends out also walk at ${P_(s.slow)} speed.` },
+      { id: 'bfg', name: 'Kitty Cannon', icon: '🎯', target: 'own', fx: 'cannon', lv: { dur: [6, 7, 8, 9, 10], atk: [1.3, 1.35, 1.4, 1.45, 1.5] },
+        desc: s => `For ${s.dur}s your building is a cannon: cats sent from it ride cannonballs straight to their target at double speed and hit ×${s.atk} as hard. Towers can't shoot them and skills can't touch them. Not on the Grand Cat Tree.` },
+      { id: 'fortify', name: 'Fortress', icon: '🏰', target: 'global', fx: 'fort', lv: { dur: [5, 5.5, 6, 6.5, 7] },
+        desc: s => `For ${s.dur}s every building you own becomes a top-level tower: it shoots and defends like one, but stops its normal job meanwhile.` },
+    ],
+  },
+  // ================================================================ Tech Whiskers
+  {
+    id: 'nova', name: 'Commander Nova', title: 'Warp Pilot', clan: 'tech', cost: 750, fur: 'white', role: 'All-round · Easy',
     blurb: 'Beams cats wherever they\'re needed and hides them where they aren\'t expected.',
     spells: [
       { id: 'beam', name: 'Beam Me Up', icon: '🛸', target: 'own', fx: 'beam', lv: { pct: [0.5, 0.55, 0.6, 0.65, 0.75] },
         desc: s => `Charge up one of your buildings. Within 30s, send cats from it to another of your buildings: ${P_(s.pct)} of its cats beam straight there in 2s.` },
-      { id: 'cloak', name: 'Cloak', icon: '👻', target: 'area', fx: 'cloak', lv: { dur: [10, 11, 12, 13.5, 15], r: [150, 175, 200, 225, 250] },
+      { id: 'cloak', name: 'Cloak', icon: '🫥', target: 'area', fx: 'cloak', lv: { dur: [10, 11, 12, 13.5, 15], r: [150, 175, 200, 225, 250] },
         desc: s => `Your cats walking in the area turn invisible for ${s.dur}s: towers can't see them and enemy squads walk right past.` },
       { id: 'uturn', name: 'U-Turn Field', icon: '↩️', target: 'area', fx: 'uturn', lv: { dur: [1.5, 2, 2.5, 3, 4], r: [100, 112, 125, 137, 150] },
         desc: s => `For ${s.dur}s, enemy cats walking into the area turn around and go home.` },
@@ -187,37 +229,121 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'velvet', name: 'Agent Velvet', title: 'Spy of the Night Roofs', clan: 'tech', cost: 13500, fur: 'black', art: 'shadow', role: 'All-round · Hard', sees: true,
-    blurb: 'Knows exactly how many cats you have. Soon, so will you.',
-    spells: [
-      { id: 'spyeye', name: 'Spy Eye', icon: '🔭', target: 'area', fx: 'spy', lv: { dur: [5, 5.5, 6, 6.5, 7], prod: [0.95, 0.9, 0.85, 0.8, 0.75], r: [200, 212, 225, 237, 250] },
-        desc: s => `For ${s.dur}s you can see how many cats are inside enemy buildings in the area, and they make kittens at only ${P_(s.prod)} speed.` },
-      { id: 'fog', name: 'Fog Cloud', icon: '🌫️', target: 'area', fx: 'fog', dur: 15, lv: { slow: [0.95, 0.9, 0.8, 0.75, 0.7], r: [200, 212, 225, 237, 250] },
-        desc: s => `A fog cloud for 15s: your cats inside are hidden, towers can't shoot into it, and enemy cats inside walk at ${P_(s.slow)} speed.` },
-      { id: 'hypno', name: 'Hypnotize', icon: '🌀', target: 'notown', fx: 'hypno', lv: { pct: [0.7, 0.725, 0.75, 0.78, 0.8] },
-        desc: s => `${P_(s.pct)} of the cats in an enemy or stray building fall under your spell and walk to your nearest building.` },
-      { id: 'zapfence', name: 'Zap Fence', icon: '⚡', target: 'own', fx: 'fence', lv: { dur: [7, 8, 9, 9.5, 10], cap: [75, 100, 115, 130, 150] },
-        desc: s => `An electric fence rings your building for ${s.dur}s and knocks out enemy cats that cross it (up to ${s.cap}).` },
-    ],
-  },
-  {
-    id: 'paradox', name: 'Professor Paradox', title: 'Keeper of Clocks', clan: 'tech', cost: 3000, fur: 'graytabby', art: 'purrcival', role: 'All-round · Easy',
-    blurb: 'Was here yesterday. Will be here tomorrow. Knows where your cats are going.',
+    id: 'tickstorm', name: 'Count Tickstorm', title: 'Keeper of the Thunder Clock', clan: 'tech', cost: 3000, fur: 'tuxedo', role: 'All-round · Medium',
+    blurb: 'A clock on his top hat and sparks in his whiskers. Knows where your cats are going, and where they were.',
     spells: [
       { id: 'mindread', name: 'Mind Reader', icon: '🧠', target: 'area', fx: 'intel', dur: 8, lv: { r: [175, 200, 217, 232, 250] },
         desc: s => `For 8s, lines show where every enemy squad in the area is heading (not how many cats a building has).` },
       { id: 'rewind', name: 'Rewind', icon: '⏪', target: 'area', fx: 'rewind', lv: { back: [2.5, 2.75, 3, 3.25, 3.5], r: [125, 137, 150, 155, 160] },
-        desc: s => `Enemy cats walking in the area jump back to where they were ${s.back}s ago.` },
+        desc: s => `Enemy and stray cats walking in the area jump back to where they were ${s.back}s ago.` },
       { id: 'shortcut', name: 'Shortcut', icon: '🕳️', target: 'own', fx: 'shortcut', lv: { n: [25, 28, 31, 33, 35] },
         desc: s => `The next cats you send from this building (within 30s, up to ${s.n}) take a secret tunnel and arrive 3.5s later.` },
       { id: 'chain', name: 'Chain Reaction', icon: '🔗', target: 'area', fx: 'chain', r: 60, lv: { cap: [70, 75, 80, 90, 100] },
         desc: s => `Tap next to a squad: a chain reaction jumps from it to the nearby squads of the same colour, knocking out up to ${s.cap} cats. It can hit your own cats if you tap them!` },
     ],
   },
-  // ---------------- Moon Mystics
   {
-    id: 'paprika', name: 'Princess Paprika', title: 'The Sweet Talker', clan: 'mystic', cost: 7000, fur: 'persian', art: 'duchess', role: 'Attack · Medium',
-    blurb: 'Pampered, powerful and very persuasive. Enemy cats find her hard to say no to.',
+    id: 'rift', name: 'Rift', title: 'Walker of the Fourth Dimension', clan: 'tech', cost: 4500, fur: 'black', role: 'All-round · Easy',
+    blurb: 'Raised on a far-off planet, Rift learned to fold space. Never keeps you waiting for a nasty surprise.',
+    spells: [
+      { id: 'deposit', name: 'Stash', icon: '📦', target: 'area', fx: 'stash', lv: { r: [100, 107, 115, 122, 130], clone: [0.1, 0.12, 0.15, 0.17, 0.2] },
+        desc: s => `Your cats walking in the area stop and turn invisible, and ${P_(s.clone)} extra copies pop up among them. They wait until another squad of yours walks past, then join it.` },
+      { id: 'barrier', name: 'Laser Wall', icon: '🚧', target: 'own', fx: 'barrier', lv: { dur: [8, 8.5, 9, 9.5, 10], cap: [40, 45, 50, 55, 60] },
+        desc: s => `The next cats you send from this building (within 30s) leave a laser wall along their road for ${s.dur}s. Enemy cats crossing it are knocked out (up to ${s.cap}).` },
+      { id: 'heads', name: 'Bouncy Heads', icon: '⚽', target: 'area', fx: 'heads', lv: { r: [100, 107, 115, 122, 130], mult: [1.5, 1.6, 1.75, 1.9, 2] },
+        desc: s => `Your cats walking in the area curl into balls and bounce straight at the nearest enemy or stray building, hitting ×${s.mult} as hard. Balls can't capture: they only knock cats out.` },
+      { id: 'clone', name: 'Copycat', icon: '👯', target: 'area', fx: 'clone', lv: { r: [100, 107, 115, 122, 130], pct: [0.6, 0.7, 0.8, 0.9, 1] },
+        desc: s => `Every squad walking in the area gets copied (${P_(s.pct)} as many cats). The copies are yours and march the opposite way, back to where that squad came from.` },
+    ],
+  },
+  {
+    id: 'orbit', name: 'Orbit', title: 'The Saucer Ace', clan: 'tech', cost: 10500, fur: 'galaxy', role: 'Attack · Medium',
+    blurb: 'Flies a tiny saucer and wears another one on her head. Zaps, pushes and floats your cats wherever she likes.',
+    spells: [
+      { id: 'ufo', name: 'Saucer Strike', icon: '👽', target: 'area', fx: 'ufo', lv: { n: [10, 12, 14, 16, 20], r: [100, 107, 115, 122, 130] },
+        desc: s => `A flying saucer hovers over the spot for 6s and zaps enemy cats walking under it, one at a time (up to ${s.n}).` },
+      { id: 'pulse', name: 'Turbo Pulse', icon: '⏩', target: 'area', fx: 'pulse', lv: { spd: [1.5, 1.55, 1.6, 1.65, 1.7], r: [125, 132, 140, 150, 160] },
+        desc: s => `Your cats walking in the area instantly speed up: ${UP(s.spd)} faster until they arrive. Only yours.` },
+      { id: 'aura', name: 'Static Fluff', icon: '🔆', target: 'area', fx: 'aura', lv: { dur: [6, 7, 8, 9, 10], r: [100, 107, 115, 122, 130] },
+        desc: s => `For ${s.dur}s your cats walking in the area wear an energy shield: enemy cats that bump into them get knocked out while yours lose none, and skills can't touch them. A tower hit pops the shield.` },
+      { id: 'gravity', name: 'Zero-G', icon: '🪐', target: 'area', fx: 'grav', lv: { pct: [0.3, 0.35, 0.4, 0.45, 0.5], r: [100, 110, 120, 130, 140] },
+        desc: s => `Enemy cats walking in the area float helplessly up into the air for 3s. Then they drop, and ${P_(s.pct)} of them are knocked out.` },
+    ],
+  },
+  {
+    id: 'whirl', name: 'Doctor Whirl', title: 'The Mind Bender', clan: 'tech', cost: 13500, fur: 'siamese', role: 'All-round · Easy', sees: true,
+    blurb: 'A hypnotist with a spiral jewel on his turban. Knows exactly how many cats you have. Soon, so will you.',
+    spells: [
+      { id: 'spyeye', name: 'Spy Eye', icon: '🔭', target: 'area', fx: 'spy', lv: { dur: [5, 5.5, 6, 6.5, 7], prod: [0.95, 0.9, 0.85, 0.8, 0.75], r: [200, 212, 225, 237, 250] },
+        desc: s => `For ${s.dur}s you can see how many cats are inside enemy buildings in the area, and they make kittens at only ${P_(s.prod)} speed.` },
+      { id: 'fog', name: 'Fog Cloud', icon: '🌫️', target: 'area', fx: 'fog', dur: 15, lv: { slow: [0.95, 0.9, 0.8, 0.75, 0.7], r: [200, 212, 225, 237, 250] },
+        desc: s => `A fog cloud for 15s: your cats inside are hidden, towers can't shoot into it, and enemy cats inside walk at ${P_(s.slow)} speed.` },
+      { id: 'hypno', name: 'Hypnotize', icon: '🌀', target: 'notown', fx: 'hypno', lv: { pct: [0.7, 0.725, 0.75, 0.78, 0.8] },
+        desc: s => `Put an enemy or stray building under your spell. For the next 5s you can send cats out of it like your own: ${P_(s.pct)} of the cats inside follow your order. Wait too long and the spell fades.` },
+      { id: 'zapfence', name: 'Zap Dome', icon: '⚡', target: 'area', fx: 'fence', r: 110, lv: { dur: [7, 8, 9, 9.5, 10], cap: [75, 100, 115, 130, 150] },
+        desc: s => `An electric dome covers the spot for ${s.dur}s. Enemy cats that cross its edge, going in or coming out, are knocked out (up to ${s.cap}).` },
+    ],
+  },
+  // ================================================================ Moon Mystics
+  {
+    id: 'glacia', name: 'Glacia', title: 'The Frozen Exile', clan: 'mystic', cost: 4000, fur: 'white', role: 'All-round · Easy',
+    blurb: 'Found old ice relics on her travels and was cast out for it. Now she studies the cold, and shares it generously.',
+    spells: [
+      { id: 'tempdown', name: 'Cold Snap', icon: '🥶', target: 'enemy', fx: 'chill', lv: { dur: [5, 6, 7, 8, 10] },
+        desc: s => `An enemy building drops all the way to level 1 for ${s.dur}s, then gets its levels back.` },
+      { id: 'coldwave', name: 'Frost Wave', icon: '🌊', target: 'own', fx: 'wave', lv: { dur: [3, 3.5, 4, 4.5, 5] },
+        desc: s => `The next cats you send from this building (within 30s) push a wave of cold ahead of them: every other cat it rolls over on the way freezes for ${s.dur}s.` },
+      { id: 'glaciate', name: 'Big Freeze', icon: '🏔️', target: 'global', fx: 'glacier', lv: { dur: [6, 7, 8, 9, 10] },
+        desc: s => `Ice creeps over every rival's screen and their catnip stops refilling for ${s.dur}s.` },
+      { id: 'icerain', name: 'Hailstorm', icon: '🌨️', target: 'area', fx: 'hail', lv: { r: [90, 97, 105, 112, 120], pct: [0.3, 0.35, 0.4, 0.45, 0.5] },
+        desc: s => `Hail crashes down on the spot: every enemy cat walking in the area is knocked out, and enemy buildings in it lose ${P_(s.pct)} of their cats.` },
+    ],
+  },
+  {
+    id: 'pebble', name: 'Madame Pebble', title: 'Mistress of Stone and Soil', clan: 'mystic', cost: 5000, fur: 'maneki', role: 'All-round · Medium',
+    blurb: 'Rules the earth from under a straw hat, a pet hen on top. One stern look and you feel like a chicken.',
+    spells: [
+      { id: 'vortex', name: 'Zoomies Vortex', icon: '💨', target: 'area', fx: 'vortex', lv: { dur: [5.5, 6, 6.5, 7, 7.5], r: [100, 107, 115, 122, 125] },
+        desc: s => `For ${s.dur}s, every cat walking through the area runs 50% faster. Anyone's cats.` },
+      { id: 'purrfreeze', name: 'Purr Freeze', icon: '⏸️', target: 'global', fx: 'pfreeze', lv: { dur: [10, 11.5, 13, 14, 15] },
+        desc: s => `Everyone's Purr Power is locked for ${s.dur}s: nobody gains or loses stars. Lock in your lead!` },
+      { id: 'chickens', name: 'Chicken Out', icon: '🐔', target: 'area', fx: 'chicken', lv: { atk: [0.8, 0.75, 0.7, 0.65, 0.6], r: [150, 162, 175, 187, 200] },
+        desc: s => `Enemy cats walking in the area turn into chickens until they arrive: no forge or Purr Power bonus, and they only hit at ${P_(s.atk)} strength.` },
+      { id: 'magnet', name: 'Cat Magnet', icon: '🧲', target: 'any', fx: 'magnet', lv: { dur: [5, 6, 7, 8, 8.5], r: [200, 212, 225, 237, 250] },
+        desc: s => `For ${s.dur}s any building you pick (yours, a rival's or a stray) pulls in every cat walking within ${s.r}. Its owner's cats move in; everyone else's have to attack it.` },
+    ],
+  },
+  {
+    id: 'willow', name: 'Willow', title: 'Tamer of Wild Beasts', clan: 'mystic', cost: 6000, fur: 'graytabby', role: 'All-round · Medium',
+    blurb: 'Knew from a kitten that animals listen to her. The bigger she grew, the bigger the beasts that answer.',
+    spells: [
+      { id: 'quicksand', name: 'Quicksand', icon: '⏳', target: 'any', fx: 'qsand', lv: { dur: [6, 7, 8, 9, 10], slow: [0.6, 0.55, 0.5, 0.45, 0.4] },
+        desc: s => `For ${s.dur}s the ground around any building turns to quicksand: enemy cats walking near it move at ${P_(s.slow)} speed.` },
+      { id: 'unity', name: 'Pack Up', icon: '🧳', target: 'own', fx: 'unity',
+        desc: () => 'The next time you send cats from this building to another of yours (within 30s), every cat in it moves over at once.' },
+      { id: 'wind', name: 'Gust', icon: '🌬️', target: 'own', fx: 'wind', lv: { dur: [5, 6, 7, 8, 9], spd: [1.4, 1.45, 1.5, 1.55, 1.6] },
+        desc: s => `The next cats you send from this building (within 30s) whip up a wind along their road for ${s.dur}s. Every cat walking with the wind goes ${UP(s.spd)} faster; every cat walking against it slows down as much.` },
+      { id: 'worm', name: 'Sand Worm', icon: '🪱', target: 'notown', fx: 'worm', lv: { pct: [0.4, 0.45, 0.5, 0.55, 0.6], r: [150, 162, 175, 187, 200] },
+        desc: s => `A giant worm bursts up under an enemy or stray building for 4s. It gobbles ${P_(s.pct)} of the cats inside and pulls in every other cat walking within ${s.r}. Everything it eats comes back as your sand cats and attacks the building.` },
+    ],
+  },
+  {
+    id: 'saffron', name: 'Saffron', title: 'The Desert Shaman', clan: 'mystic', cost: 8000, fur: 'ginger', role: 'All-round · Medium',
+    blurb: 'Speaks to the sand and the sky. Raises totems, rolls boulders and brings the rain wherever she pleases.',
+    spells: [
+      { id: 'totem', name: 'Rage Totem', icon: '🗿', target: 'area', fx: 'totem', lv: { dur: [8, 9, 10, 11, 12], atk: [1.2, 1.22, 1.25, 1.27, 1.3], r: [100, 107, 115, 122, 130] },
+        desc: s => `A totem stands on the spot for ${s.dur}s, like an extra Yarn Forge: your cats walking past it hit ×${s.atk} as hard, and your buildings in its area defend ×${s.atk} as well.` },
+      { id: 'stones', name: 'Rolling Boulders', icon: '🪨', target: 'area', fx: 'stones', lv: { n: [20, 25, 30, 35, 40], r: [100, 107, 115, 122, 130], mult: [1.5, 1.6, 1.75, 1.9, 2] },
+        desc: s => `Up to ${s.n} of your cats walking in the area curl into boulders and keep rolling to their target. Boulders hit ×${s.mult} as hard but can't capture.` },
+      { id: 'rain', name: 'Sleepy Rain', icon: '🌧️', target: 'area', fx: 'rain', lv: { dur: [8, 9, 10, 11, 12], slow: [0.6, 0.55, 0.5, 0.45, 0.4], r: [125, 135, 145, 155, 165] },
+        desc: s => `Rain falls on the spot for ${s.dur}s: enemy and stray cats walking through it slow to ${P_(s.slow)} speed.` },
+      { id: 'sandstorm', name: 'Sandstorm', icon: '🏜️', target: 'area', fx: 'sand', lv: { dur: [4, 4.5, 5, 5.5, 6], pct: [0.2, 0.25, 0.3, 0.35, 0.4], r: [125, 132, 140, 150, 160] },
+        desc: s => `A sandstorm traps enemy cats walking in the area for ${s.dur}s. When it ends they've lost their way and wander home, and ${P_(s.pct)} of them turn into wild sand cats: strays that attack the nearest building.` },
+    ],
+  },
+  {
+    id: 'marigold', name: 'Queen Marigold', title: 'The Unbeatable Queen', clan: 'mystic', cost: 7000, fur: 'persian', role: 'Attack · Hard',
+    blurb: 'Pampered, powerful and very persuasive. Every one of her skills works against everybody.',
     spells: [
       { id: 'kittenboom', name: 'Kitten Boom', icon: '🍼', target: 'own', fx: 'kboom', lv: { boost: [1.5, 1.6, 1.7, 1.85, 2], dur: [7.5, 8, 8.5, 9, 10] },
         desc: s => `Your cottage makes kittens ×${s.boost} as fast for ${s.dur}s.` },
@@ -230,13 +356,13 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'snowpaw', name: 'Snowpaw', title: 'Witch of the Frozen Peaks', clan: 'mystic', cost: 9500, fur: 'white', art: 'mittens', role: 'Attack · Medium',
-    blurb: 'Tiny paws, enormous storms. Everything slows down when she\'s around.',
+    id: 'honeydew', name: 'Honeydew', title: 'Friend of the Bees', clan: 'mystic', cost: 9500, fur: 'cream', role: 'Defense · Medium',
+    blurb: 'A nature witch with flowers in her hair. The bees carry her cats, the wind does the rest.',
     spells: [
       { id: 'deepfreeze', name: 'Deep Freeze', icon: '🧊', target: 'enemy', fx: 'freeze', lv: { dur: [4, 4.5, 5, 5.5, 6] },
         desc: s => `Freezes an enemy building for ${s.dur}s: no kittens, no tower shots, and a forge or garden gives no bonus.` },
-      { id: 'flying', name: 'Flying Kittens', icon: '🎈', target: 'own', fx: 'fly', lv: { n: [50, 60, 70, 85, 100], spd: [1.3, 1.4, 1.5, 1.6, 1.7] },
-        desc: s => `The next cats you send from this building (within 30s, up to ${s.n}) float straight over ponds, walls and hedges, ${UP(s.spd)} faster.` },
+      { id: 'flying', name: 'Bee Lift', icon: '🐝', target: 'own', fx: 'fly', lv: { n: [50, 60, 70, 85, 100], spd: [1.3, 1.4, 1.5, 1.6, 1.7] },
+        desc: s => `The next cats you send from this building (within 30s, up to ${s.n}) are carried by bees straight over ponds, walls and hedges, ${UP(s.spd)} faster.` },
       { id: 'frostring', name: 'Ring of Frost', icon: '❄️', target: 'area', fx: 'frost', lv: { dur: [8, 9, 10, 11, 12], r: [100, 112, 125, 137, 150] },
         desc: s => `Every cat walking in the area freezes solid for ${s.dur}s. Yours too!` },
       { id: 'tornado', name: 'Tornado', icon: '🌪️', target: 'area', fx: 'tornado', lv: { dur: [10, 11, 12, 13, 15] },
@@ -244,23 +370,51 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'mischief', name: 'Miss Mischief', title: 'The Lucky Charm', clan: 'mystic', cost: 5000, fur: 'maneki', art: 'neko', role: 'All-round · Medium',
-    blurb: 'One wave of her paw and the whole battlefield goes a bit silly.',
+    id: 'wispera', name: 'Wispera', title: 'The Ghost Caller', clan: 'mystic', cost: 17000, fur: 'void', role: 'All-round · Medium',
+    blurb: 'Keeps coming back from beyond, and brings a few friends every time. Her old tribe banned her magic. She kept it anyway.',
     spells: [
-      { id: 'vortex', name: 'Zoomies Vortex', icon: '💨', target: 'area', fx: 'vortex', lv: { dur: [5.5, 6, 6.5, 7, 7.5], r: [100, 107, 115, 122, 125] },
-        desc: s => `For ${s.dur}s, every cat walking through the area runs 50% faster. Anyone's cats.` },
-      { id: 'purrfreeze', name: 'Purr Freeze', icon: '⏸️', target: 'global', fx: 'pfreeze', lv: { dur: [10, 11.5, 13, 14, 15] },
-        desc: s => `Everyone's Purr Power is locked for ${s.dur}s: nobody gains or loses stars. Lock in your lead!` },
-      { id: 'chickens', name: 'Chicken Out', icon: '🐔', target: 'area', fx: 'chicken', lv: { atk: [0.8, 0.75, 0.7, 0.65, 0.6], r: [150, 162, 175, 187, 200] },
-        desc: s => `Enemy cats walking in the area turn into chickens until they arrive: no forge or Purr Power bonus, and they only hit at ${P_(s.atk)} strength.` },
-      { id: 'magnet', name: 'Cat Magnet', icon: '🧲', target: 'own', fx: 'magnet', lv: { dur: [5, 6, 7, 8, 8.5], r: [200, 212, 225, 237, 250] },
-        desc: s => `For ${s.dur}s your building pulls in every cat walking within ${s.r}: yours move in, and enemy cats have to attack it.` },
+      { id: 'haunt', name: 'Haunted House', icon: '🕯️', target: 'own', fx: 'haunt', lv: { n: [10, 12, 14, 17, 20], dur: [8, 9, 10, 11, 12] },
+        desc: s => `${s.n} ghost cats move into your building for ${s.dur}s. They help defend it but can't be sent out, and they vanish when the time is up.` },
+      { id: 'possess', name: 'Possession', icon: '🎭', target: 'enemy', fx: 'possess', lv: { dur: [5, 6, 7, 8, 10] },
+        desc: s => `An enemy building becomes yours for ${s.dur}s, cats and all. You can't send cats out of it, but you can upgrade or convert it. Then it goes back to its owner with whatever cats are left.` },
+      { id: 'spirited', name: 'Spirited Away', icon: '↪️', target: 'owned', fx: 'redirect', lv: { dur: [4, 4.5, 5, 5.5, 6] },
+        desc: s => `For ${s.dur}s, enemy attacks on any of your buildings hit the building you picked instead. Pick a strong one of yours to soak them up, or a rival's so they hit their own. Redirected hits can't capture it.` },
+      { id: 'ghostarmy', name: 'Ghost Army', icon: '👥', target: 'any', fx: 'ghosts', lv: { n: [30, 34, 38, 42, 45] },
+        desc: s => `${s.n} ghost cats rise next to any building and march in: they reinforce yours or attack anyone else's. They fight like your normal cats, but towers can't hit them and skills can't touch them.` },
     ],
   },
-  // ---------------- Alley Cats
+  // ================================================================ Alley Cats
   {
-    id: 'graveclaw', name: 'Lord Graveclaw', title: 'Keeper of Nine Lives', clan: 'alley', cost: 15500, fur: 'void', art: 'luna', role: 'Attack · Hard',
-    blurb: 'Cats have nine lives. He knows where the other eight went.',
+    id: 'morrow', name: 'Morrow', title: 'Master of Lost Souls', clan: 'alley', cost: 1500, fur: 'black', role: 'Defense · Easy', sees: true,
+    blurb: 'Collects souls in a little lantern. His towers never go hungry and his potions are... an acquired taste.',
+    spells: [
+      { id: 'soulsnatch', name: 'Soul Snatcher', icon: '🏮', target: 'own', fx: 'soul', lv: { range: [1.2, 1.25, 1.3, 1.4, 1.5], dur: [10, 11, 12, 13.5, 15] },
+        desc: s => `For ${s.dur}s your tower reaches ${UP(s.range)} farther, and every enemy cat it knocks out joins the tower.` },
+      { id: 'untouchable', name: 'Untouchable', icon: '🔮', target: 'own', fx: 'invuln',
+        desc: () => 'Nothing can hurt your building, but after half a second the spell starts eating 6 of its own cats every second until they run out (10s at most).' },
+      { id: 'slowmo', name: 'Slow-Mo Ring', icon: '🐌', target: 'area', fx: 'slowmo', lv: { slowx: [2, 2.25, 2.5, 2.75, 3], r: [112, 125, 137, 150, 162] },
+        desc: s => `Every cat walking in the area moves ${s.slowx}× slower until it arrives. Anyone's cats.` },
+      { id: 'poison', name: 'Food Poisoning', icon: '🤢', target: 'enemy', fx: 'plague', dur: 12, lv: { rate: [2, 2.5, 3, 3.5, 4], prod: [0.5, 0.4, 0.3, 0.15, 0], chance: [0.5, 0.6, 0.7, 0.85, 1] },
+        desc: s => `For 12s an enemy building loses ${s.rate} cats a second and makes kittens at ${P_(s.prod)} speed, and you can see its count. Cats sent out of it carry it along (${P_(s.chance)} chance).` },
+    ],
+  },
+  {
+    id: 'ironclaw', name: 'Ironclaw', title: 'The Iron Fist', clan: 'alley', cost: 3500, fur: 'gray', role: 'Defense · Easy',
+    blurb: 'Something old and angry moved into this cat and never left. Now he passes the suffering on, one iron paw at a time.',
+    spells: [
+      { id: 'seal', name: 'Iron Seal', icon: '🔏', target: 'enemy', fx: 'seal', lv: { pct: [0.05, 0.06, 0.07, 0.08, 0.09] },
+        desc: s => `For 5s an enemy building loses ${P_(s.pct)} of the cats it had every second, and a cottage stops making kittens.` },
+      { id: 'mines', name: 'Mine Field', icon: '✴️', target: 'area', fx: 'mines', lv: { n: [20, 25, 30, 35, 40], r: [100, 107, 115, 122, 130] },
+        desc: s => `Up to ${s.n} enemy cats walking in the area freeze into mines. Any other enemy cat that walks into a mine is knocked out.` },
+      { id: 'thief', name: 'Purr Thief', icon: '💰', target: 'enemy', fx: 'thief',
+        desc: () => 'Pick an enemy building: steals up to one Purr Power star from its owner and adds it to yours.' },
+      { id: 'reap', name: 'Soul Harvest', icon: '🌾', target: 'own', fx: 'reap', lv: { dur: [6, 7, 8, 9, 10], r: [150, 162, 175, 187, 200], pct: [0.6, 0.7, 0.8, 0.9, 1] },
+        desc: s => `For ${s.dur}s, ${P_(s.pct)} of every cat knocked out within ${s.r} of your building (anyone's) comes back to life inside it as yours.` },
+    ],
+  },
+  {
+    id: 'bones', name: 'Baron Bones', title: 'Lord of the Long Nap', clan: 'alley', cost: 15500, fur: 'void', role: 'Attack · Hard',
+    blurb: 'Wears a skull for a hat. Cats have nine lives; he knows where the other eight went.',
     spells: [
       { id: 'crumble', name: 'Crumble', icon: '🏚️', target: 'enemy', fx: 'crumble',
         desc: () => 'An enemy building drops one level.' },
@@ -273,35 +427,49 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'grimsby', name: 'Chef Grimsby', title: 'The Spooky Cook', clan: 'alley', cost: 1500, fur: 'cream', art: 'chef', role: 'Defense · Easy', sees: true,
-    blurb: 'His towers never go hungry and his soup is... an acquired taste.',
+    id: 'cackle', name: 'Cackle', title: 'The Cauldron Witch', clan: 'alley', cost: 16500, fur: 'siamese', role: 'Attack · Hard',
+    blurb: 'Raises skeletons, borrows other heroes\' tricks and drops cauldrons on things. Usually laughing.',
     spells: [
-      { id: 'soulsnatch', name: 'Soul Snatcher', icon: '🥄', target: 'own', fx: 'soul', lv: { range: [1.2, 1.25, 1.3, 1.4, 1.5], dur: [10, 11, 12, 13.5, 15] },
-        desc: s => `For ${s.dur}s your tower reaches ${UP(s.range)} farther, and every enemy cat it knocks out joins the tower.` },
-      { id: 'untouchable', name: 'Untouchable', icon: '🔮', target: 'own', fx: 'invuln',
-        desc: () => 'Nothing can hurt your building, but the spell eats 6 of its own cats every second until they run out (10s at most).' },
-      { id: 'slowmo', name: 'Slow-Mo Ring', icon: '🐌', target: 'area', fx: 'slowmo', lv: { slowx: [2, 2.25, 2.5, 2.75, 3], r: [112, 125, 137, 150, 162] },
-        desc: s => `Every cat walking in the area moves ${s.slowx}× slower until it arrives. Anyone's cats.` },
-      { id: 'poison', name: 'Food Poisoning', icon: '🤢', target: 'enemy', fx: 'plague', dur: 12, lv: { rate: [2, 2.5, 3, 3.5, 4], prod: [0.5, 0.4, 0.3, 0.15, 0], chance: [0.5, 0.6, 0.7, 0.85, 1] },
-        desc: s => `For 12s an enemy building loses ${s.rate} cats a second and makes kittens at ${P_(s.prod)} speed, and you can see its count. Cats sent out of it carry it along (${P_(s.chance)} chance).` },
+      { id: 'skeletons', name: 'Bone Rush', icon: '🦴', target: 'enemy', fx: 'bones', lv: { n: [10, 12, 14, 16, 20] },
+        desc: s => `${s.n} skeleton cats claw out of the ground right next to an enemy building and attack it. Not on a level 5 cottage.` },
+      { id: 'steal', name: 'Copy Cat', icon: '🎒', target: 'global', fx: 'steal',
+        desc: () => 'Copies the last skill a rival cast. This button turns into that skill (at their level) until you use it once; it costs its usual catnip.' },
+      { id: 'bloodpact', name: 'Blood Pact', icon: '🩸', target: 'global', fx: 'blood', lv: { dur: [8, 9, 10, 11, 12], purr: [10, 12, 14, 17, 20] },
+        desc: s => `For ${s.dur}s every cat you lose gives you Purr Power (+${s.purr} each) instead of taking it away.` },
+      { id: 'cauldron', name: 'Big Cauldron', icon: '🍲', target: 'enemy', fx: 'cauldron',
+        desc: () => 'An enemy building turns into a level 1 stray under a cauldron: nobody can send cats to it. Casting it again lifts the cauldron off the last one.' },
     ],
   },
   {
-    id: 'hexley', name: 'Hexley', title: 'The Trickster', clan: 'alley', cost: 18000, fur: 'tuxedo', art: 'glitch', role: 'Attack · Hard',
-    blurb: 'Sits on your keyboard, your towers and your plans.',
+    id: 'jinx', name: 'Jinx', title: 'The Switcheroo', clan: 'alley', cost: 18000, fur: 'orange', role: 'Attack · Hard',
+    blurb: 'A jester with bells on. Swaps your buildings, charms your attackers and makes every loss hurt twice.',
     spells: [
-      { id: 'defectors', name: 'Defectors', icon: '🏃', target: 'enemy', fx: 'defect', lv: { dur: [8, 8.5, 9, 9.5, 10] },
-        desc: s => `For ${s.dur}s, every kitten an enemy building makes walks over to your nearest building.` },
-      { id: 'bounce', name: 'Bounce Shield', icon: '🪞', target: 'own', fx: 'bounce', lv: { dur: [8, 8.5, 9, 9.5, 10], n: [40, 45, 50, 55, 60] },
-        desc: s => `For ${s.dur}s (or until ${s.n} cats bounce off) enemy cats that reach your building turn around and go home.` },
+      { id: 'defectors', name: 'Defectors', icon: '🏃', target: 'notown', fx: 'defect', lv: { dur: [8, 8.5, 9, 9.5, 10] },
+        desc: s => `For ${s.dur}s, every kitten an enemy or stray building makes walks over to your nearest building.` },
+      { id: 'bounce', name: 'Charm Shield', icon: '🪞', target: 'own', fx: 'bounce', lv: { dur: [8, 8.5, 9, 9.5, 10], n: [40, 45, 50, 55, 60] },
+        desc: s => `For ${s.dur}s (or until ${s.n} cats bounce off) rivals can't send attacks at your building, and enemy cats already on the way turn around at the door and hurry home.` },
       { id: 'swap', name: 'Swap!', icon: '🔀', target: 'enemy', fx: 'swap',
         desc: () => 'Swaps an enemy building with a random one of yours, cats and all. Their effects wear off.' },
-      { id: 'echo', name: 'Echo Hex', icon: '📣', target: 'enemy', fx: 'echo', lv: { dur: [8, 8.5, 9, 9.5, 10], bld: [3, 3, 4, 4, 5], pct: [0.75, 0.8, 0.85, 0.95, 1] },
-        desc: s => `For ${s.dur}s, ${P_(s.pct)} of every cat knocked out of an enemy building is also knocked out of its ${s.bld} nearest buildings.` },
+      { id: 'echo', name: 'Echo Hex', icon: '📣', target: 'notown', fx: 'echo', lv: { dur: [8, 8.5, 9, 9.5, 10], bld: [3, 3, 4, 4, 5], pct: [0.75, 0.8, 0.85, 0.95, 1] },
+        desc: s => `For ${s.dur}s, ${P_(s.pct)} of every cat knocked out of an enemy or stray building is also knocked out of the ${s.bld} nearest buildings that aren't yours.` },
     ],
+  },
+  {
+    id: 'riddle', name: 'Riddle', title: 'The Cat of Many Faces', clan: 'alley', cost: 21000, fur: 'galaxy', role: 'All-round · Hard', random: true,
+    blurb: 'A riddle with no answer behind a two-faced mask. One battle brute strength, the next pure cunning. Why stick to one talent?',
+    spells: [1, 2, 3, 4].map(k => ({
+      id: 'bek' + k, name: `Mystery Skill ${k}`, icon: '❓', target: 'global', fx: 'mystery', mystery: true,
+      desc: () => `A random hero's skill ${k}, picked fresh at the start of every battle. Leveling this up makes whatever skill you get stronger.`,
+    })),
   },
 ]);
 export const HERO_BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
+// heroes from before the 24-hero roster: old saves and old clients map onto the hero with the same skills
+export const LEGACY_HEROES = {
+  pounce: 'barnaby', kibble: 'mortar', bristle: 'cinder', zap: 'nova', velvet: 'whirl', paradox: 'tickstorm',
+  paprika: 'marigold', snowpaw: 'honeydew', mischief: 'pebble', graveclaw: 'bones', grimsby: 'morrow', hexley: 'jinx',
+};
+export function heroById(id) { return HERO_BY_ID[id] || HERO_BY_ID[LEGACY_HEROES[id]] || null; }
 export function findSpell(id) {
   for (const h of HEROES) for (const s of h.spells) if (s.id === id) return s;
   return null;
@@ -1235,18 +1403,18 @@ export const AI_LEVELS = {
 
 // ---------------- Campaign ----------------
 export const CAMPAIGN = [
-  { id: 1,  name: 'First Whiskers',    map: 'meadow',   ai: 'easy',   enemy: 'pounce', reward: 300, tip: 'Drag from your cottage to a stray building to send cats.' },
-  { id: 2,  name: 'Tower Trouble',     map: 'rooftops', ai: 'easy',   enemy: 'kibble',   reward: 300, tip: 'Towers shoot cats walking past. Send a big group at once!' },
-  { id: 3,  name: 'Snowball Fight',    map: 'snowy',    ai: 'easy',   enemy: 'zap',      reward: 360, tip: 'Tap your cottage to upgrade it. Upgraded cottages make kittens faster.' },
-  { id: 4,  name: 'Garden Party',      map: 'moonlit',  ai: 'normal', enemy: 'grimsby',  reward: 390, tip: 'Catnip is scarce. Gardens refill it much faster, and skills win battles!' },
-  { id: 5,  name: 'Dockside Dash',     map: 'docks',    ai: 'normal', enemy: 'paradox',  reward: 420, tip: 'Forges make all your cats hit harder.' },
-  { id: 6,  name: 'Sugar Rush',        map: 'candy',    ai: 'normal', enemy: 'mischief', reward: 450, tip: 'The Grand Cat Tree is worth fighting for.' },
-  { id: 7,  name: 'Ninja Night',       map: 'maze',     ai: 'hard',   enemy: 'paprika',  reward: 510, tip: 'Cats walk around hedges and ponds. Drag onto a building to see the road they will take.' },
-  { id: 8,  name: 'Chonk Wall',        map: 'ridge',    ai: 'hard',   enemy: 'snowpaw',  reward: 540, tip: 'Purr Power stars make your buildings much tougher. Never attack into a rival with more stars than you.' },
-  { id: 9,  name: 'Space Race',        map: 'alleys',   ai: 'hard',   enemy: 'bristle',  reward: 600, tip: 'Swipe across several of your buildings to send from all of them at once.' },
-  { id: 10, name: 'Mad Science',       map: 'archipelago', ai: 'hard', enemy: 'velvet',   reward: 660, tip: 'Bridges are chokepoints. Spread out so one area spell cannot hit everything.' },
-  { id: 11, name: 'Witching Hour',     map: 'chocoriver', ai: 'insane', enemy: 'graveclaw', reward: 750, tip: 'The enemy grows stronger. So do you. Convert buildings to change their job.' },
-  { id: 12, name: 'The Keyboard King', map: 'hedgerow', ai: 'insane', enemy: 'hexley',   reward: 1200, tip: 'The final boss. Show them who the real top cat is!' },
+  { id: 1,  name: 'First Whiskers',    map: 'meadow',   ai: 'easy',   enemy: 'barnaby', reward: 300, tip: 'Drag from your cottage to a stray building to send cats.' },
+  { id: 2,  name: 'Tower Trouble',     map: 'rooftops', ai: 'easy',   enemy: 'mortar',   reward: 300, tip: 'Towers shoot cats walking past. Send a big group at once!' },
+  { id: 3,  name: 'Snowball Fight',    map: 'snowy',    ai: 'easy',   enemy: 'glacia',   reward: 360, tip: 'Tap your cottage to upgrade it. Upgraded cottages make kittens faster.' },
+  { id: 4,  name: 'Garden Party',      map: 'moonlit',  ai: 'normal', enemy: 'honeydew', reward: 390, tip: 'Catnip is scarce. Gardens refill it much faster, and skills win battles!' },
+  { id: 5,  name: 'Dockside Dash',     map: 'docks',    ai: 'normal', enemy: 'nova',     reward: 420, tip: 'Forges make all your cats hit harder.' },
+  { id: 6,  name: 'Sugar Rush',        map: 'candy',    ai: 'normal', enemy: 'pebble',   reward: 450, tip: 'The Grand Cat Tree is worth fighting for.' },
+  { id: 7,  name: 'Ninja Night',       map: 'maze',     ai: 'hard',   enemy: 'rift',     reward: 510, tip: 'Cats walk around hedges and ponds. Drag onto a building to see the road they will take.' },
+  { id: 8,  name: 'Chonk Wall',        map: 'ridge',    ai: 'hard',   enemy: 'ironclaw', reward: 540, tip: 'Purr Power stars make your buildings much tougher. Never attack into a rival with more stars than you.' },
+  { id: 9,  name: 'Space Race',        map: 'alleys',   ai: 'hard',   enemy: 'orbit',    reward: 600, tip: 'Swipe across several of your buildings to send from all of them at once.' },
+  { id: 10, name: 'Mad Science',       map: 'archipelago', ai: 'hard', enemy: 'tickstorm', reward: 660, tip: 'Bridges are chokepoints. Spread out so one area spell cannot hit everything.' },
+  { id: 11, name: 'Witching Hour',     map: 'chocoriver', ai: 'insane', enemy: 'cackle',   reward: 750, tip: 'The enemy grows stronger. So do you. Convert buildings to change their job.' },
+  { id: 12, name: 'Many Faces',        map: 'hedgerow', ai: 'insane', enemy: 'riddle',   reward: 1200, tip: 'The final boss. Show them who the real top cat is!' },
 ];
 
 // ---------------- Achievements ----------------

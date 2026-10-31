@@ -238,8 +238,8 @@ function sanitize(p) {
   if (!p) return null;
   return {
     id: String(p.id || '').slice(0, 16), name: String(p.name || 'Kitty').slice(0, 16), level: Math.max(1, Math.min(999, p.level | 0)),
-    hero: String(p.hero || 'pounce').slice(0, 16), fur: String(p.fur || 'ginger').slice(0, 16), hat: String(p.hat || 'none').slice(0, 16),
-    heroes: Array.isArray(p.heroes) ? p.heroes.slice(0, 20).map(String) : [],
+    hero: String(p.hero || 'barnaby').slice(0, 16), fur: String(p.fur || 'ginger').slice(0, 16), hat: String(p.hat || 'none').slice(0, 16),
+    heroes: Array.isArray(p.heroes) ? p.heroes.slice(0, 40).map(String) : [],
     fc: /^\d{8}$/.test(String(p.fc || '')) ? String(p.fc) : '',
     skills: cleanSkills(p.skills),
   };

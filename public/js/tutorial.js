@@ -2,7 +2,7 @@
 // A real battle on a small practice field. A coach card walks you through it one step at a time: each step points
 // at what to do (glowing rings, a paw that shows the drag, glowing buttons) and waits until you have done it.
 // The red cat stays still until the last step, except when the tutorial sends it in to show you something.
-import { BUILDINGS, CONVERT_COST, PURR, purrLevel, HERO_BY_ID } from '../shared/data.js';
+import { BUILDINGS, CONVERT_COST, PURR, purrLevel, heroById, HEROES } from '../shared/data.js';
 import { audio } from './audio.js';
 
 // The practice field: you on the left, the red cat on the right, strays in between.
@@ -50,7 +50,7 @@ export class Tutorial {
   owner(id) { const b = this.m.game.byId.get(id); return b ? b.owner : -2; }
   mine(id) { return this.owner(id) === 0; }
   count(id) { const b = this.m.game.byId.get(id); return b ? b.count : 0; }
-  hero() { return HERO_BY_ID[this.m.info.players[0].hero]; }
+  hero() { return heroById(this.m.info.players[0].hero) || HEROES[0]; }
   phone() { return !!this.m.phone; }
   /** your cottage, or whatever you hold if you lost it */
   home() { if (this.mine(HOME)) return HOME; const b = this.m.game.buildings.find(x => x.owner === 0); return b ? b.id : HOME; }
@@ -211,7 +211,7 @@ export class Tutorial {
           const h = this.hero();
           return `Notice the <b>?</b> on red buildings: <b>nobody can see how many cats are inside a rival's buildings</b>. Not you, and not the computer either. Cats walking on the road always show their numbers.
           <div class="tc-jobs">
-            <div>👁 Only two heroes have a skill that looks inside: <b>Agent Velvet</b> (Spy Eye shows every building in an area) and <b>Chef Grimsby</b> (Food Poisoning shows the building it poisons).</div>
+            <div>👁 Only two heroes have a skill that looks inside: <b>Doctor Whirl</b> (Spy Eye shows every building in an area) and <b>Morrow</b> (Food Poisoning shows the building it poisons).</div>
             <div>🧮 Everyone else has to <b>guess</b>: remember what a building had, watch the squads that leave it and arrive at it, and count on it making kittens while you wait.</div>
           </div>
           ${h.sees ? `<div class="tc-tip">👁 Good news: <b>${h.name}</b> is one of the heroes who can look inside!</div>` : ''}`;
