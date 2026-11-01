@@ -6,6 +6,10 @@ cat-sending battles, with four big changes:
 1. **Hidden armies.** Nobody can see how many cats are inside a rival's buildings, the computer included (they show
    **?**). Only two heroes have a skill that looks inside: Doctor Whirl's **Spy Eye** (every building in an area) and
    Morrow's **Food Poisoning** (the poisoned building). Everyone else estimates from what they saw.
+   The computer can't see where your squads are going either: it watches which way they walk and rules out buildings
+   as the road splits, so an attack around a corner keeps it guessing until you turn. While it can't tell, it waits
+   (holding some cats back) or guesses, and easier levels guess more often and get it wrong. Its own Mind Reader shows
+   it the truth, the same as it does for you.
 2. **New heroes with levelled skills.** 24 heroes, each with exactly 4 skills and no passive. A skill's slot sets its
    catnip cost (20 / 40 / 60 / 80) and cooldown; every skill has 5 levels bought with 🐟 fish (300 / 750 / 1,500 /
    3,000) that shorten the cooldown and strengthen the effect.
@@ -63,7 +67,8 @@ main hero and skill levels carry over).
 
 All the numbers live in `public/shared/data.js` (`HEROES`, `SLOTS`, `PURR`); the skills themselves are in
 `applySpell` in `public/shared/game.js`. The computer uses every skill (`public/shared/ai.js`) and guesses hidden
-counts the same way a player has to.
+counts and where your squads are headed the same way a player has to (how well it reads squads is `readTol`,
+`guess`, `notice` and `panic` in `AI_LEVELS`).
 
 ## Play locally
 

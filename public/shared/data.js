@@ -1446,11 +1446,16 @@ export function mulberry32(a) {
 }
 
 // ---------------- AI difficulty ----------------
+// Reading rival squads (nobody can see where a squad is going):
+//   readTol: how far a squad must stray from a building's road before the computer rules that building out
+//   guess:   chance it guesses where an unclear squad is headed instead of waiting to see
+//   notice:  seconds before it reacts to a squad that just walked out
+//   panic:   it guesses anyway once an unclear squad is this many seconds from one of its buildings
 export const AI_LEVELS = {
-  easy:   { name: 'Kitten',    think: 3.4, aggression: 0.3,  spellUse: 0.2,  upgrade: 0.25, mistakes: 0.4,  coinsWin: 120, coinsLoss: 45,  bonusProd: -0.25 },
-  normal: { name: 'House Cat', think: 2.0, aggression: 0.6,  spellUse: 0.55, upgrade: 0.55, mistakes: 0.15, coinsWin: 210, coinsLoss: 75,  bonusProd: -0.08 },
-  hard:   { name: 'Alley Boss', think: 1.0, aggression: 0.85, spellUse: 0.9, upgrade: 0.8,  mistakes: 0.04, coinsWin: 300, coinsLoss: 105, bonusProd: 0.05 },
-  insane: { name: 'Lion King', think: 0.5, aggression: 1.0,  spellUse: 1.0,  upgrade: 0.95, mistakes: 0.0,  coinsWin: 420, coinsLoss: 135, bonusProd: 0.2 },
+  easy:   { name: 'Kitten',    think: 3.4, aggression: 0.3,  spellUse: 0.2,  upgrade: 0.25, mistakes: 0.4,  coinsWin: 120, coinsLoss: 45,  bonusProd: -0.25, readTol: 30, guess: 0.6,  notice: 1.5,  panic: 2.0 },
+  normal: { name: 'House Cat', think: 2.0, aggression: 0.6,  spellUse: 0.55, upgrade: 0.55, mistakes: 0.15, coinsWin: 210, coinsLoss: 75,  bonusProd: -0.08, readTol: 22, guess: 0.4,  notice: 1.0,  panic: 2.5 },
+  hard:   { name: 'Alley Boss', think: 1.0, aggression: 0.85, spellUse: 0.9, upgrade: 0.8,  mistakes: 0.04, coinsWin: 300, coinsLoss: 105, bonusProd: 0.05,  readTol: 16, guess: 0.25, notice: 0.6,  panic: 3.0 },
+  insane: { name: 'Lion King', think: 0.5, aggression: 1.0,  spellUse: 1.0,  upgrade: 0.95, mistakes: 0.0,  coinsWin: 420, coinsLoss: 135, bonusProd: 0.2,   readTol: 13, guess: 0.15, notice: 0.35, panic: 3.5 },
 };
 
 // ---------------- Campaign ----------------

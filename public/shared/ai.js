@@ -31,7 +31,21 @@ export class AI {
   initIntel() {
     this.seen = new Map();     // building id -> { c: cats, t: when, o: owner then }
     for (const b of this.g.buildings) this.seen.set(b.id, { c: b.count, t: this.g.time, o: b.owner });
-    this.watch = new Map();    // squad id -> { to, count, owner } for squads on the field
+    this.watch = new Map();    // squad id -> { to (my squads only), count, owner, x, y } for squads it can see
+    this.track = new Map();    // rival squad id -> where it might be going (see "reading rival squads")
+    this.aim = new Map();      // rival squad id -> { b: building it thinks the squad is going to (or null), odds }
+    this.incoming = new Map(); this.reinf = new Map(); this.maybe = new Map(); this.threatened = [];
+  }
+  /** Can it see this squad at all? Not while it waits inside its building or walks cloaked. */
+  sees(s) { return s.owner === this.i || (s.wait <= 0 && !((s.fx.stealth || 0) > this.g.time)); }
+  /** the building a squad that just vanished at (x, y) walked into, if any */
+  buildingAt(x, y) {
+    let best = null, bd = Infinity;
+    for (const b of this.g.buildings) {
+      const d = Math.hypot(b.x - x, b.y - y);
+      if (d < this.g.radius(b) * 0.6 + 20 && d < bd) { bd = d; best = b; }
+    }
+    return best;
   }
   visible(b) { return this.g.canSee(this.i, b); }
   /** How many cats this AI thinks are in building b (the real number for its own buildings and strays). */
@@ -50,20 +64,25 @@ export class AI {
       if (this.visible(b)) { s.c = b.count; s.t = t; s.o = b.owner; }
       else if (s.o !== b.owner) { s.c = 4; s.t = t; s.o = b.owner; }   // just changed hands: a few cats left over (a guess)
     }
-    const here = new Set();
+    const here = new Set(), all = new Set();
     for (const q of g.squads) {
+      all.add(q.id);
+      if (!this.sees(q)) continue;
       here.add(q.id);
       if (!this.watch.has(q.id)) {
-        // a rival squad leaving one of its buildings takes cats out of it
+        // a rival squad walking out of one of its buildings takes cats out of it
         const fb = g.byId.get(q.from), sf = fb && this.seen.get(fb.id);
-        if (sf && q.owner !== this.i && fb.owner === q.owner && !this.visible(fb)) { sf.c = Math.max(0, this.est(fb) - q.count); sf.t = t; }
+        if (sf && q.owner !== this.i && fb.owner === q.owner && !this.visible(fb) && Math.hypot(q.x - fb.x, q.y - fb.y) < g.radius(fb) + 40) { sf.c = Math.max(0, this.est(fb) - q.count); sf.t = t; }
       }
-      this.watch.set(q.id, { to: q.to, count: q.count, owner: q.owner });
+      // it only knows where its own squads are going
+      this.watch.set(q.id, { to: q.owner === this.i ? q.to : -1, count: q.count, owner: q.owner, x: q.x, y: q.y });
     }
     for (const [id, w] of this.watch) {
       if (here.has(id)) continue;
       this.watch.delete(id);
-      const tb = g.byId.get(w.to), st = tb && this.seen.get(tb.id);
+      if (all.has(id)) continue;   // still out there, just cloaked or hidden now
+      // a rival squad that vanished went into the building it was standing at (if it wasn't one, it died on the field)
+      const tb = w.to >= 0 ? g.byId.get(w.to) : this.buildingAt(w.x, w.y), st = tb && this.seen.get(tb.id);
       if (!st || this.visible(tb) || tb.owner !== st.o) continue;
       if (w.owner === tb.owner) { st.c = this.est(tb) + w.count; st.t = t; }   // a rival reinforcing its own building
       else if (w.owner === this.i) {
@@ -73,9 +92,130 @@ export class AI {
     }
   }
 
+  // ---------- reading rival squads ----------
+  // Nobody can see where a squad is going, the computer included. It watches each rival squad walk and keeps the buildings
+  // it could still be heading for: every building whose road (from where the squad set off) runs through everywhere the
+  // squad has been seen. Two buildings around a corner share the road up to that corner, so until the squad turns it can't
+  // tell which one. While it can't tell it waits and watches, or guesses (more often on easier levels, or when the squad
+  // is nearly there) and can guess wrong. Its own Mind Reader zone shows the truth, just like it does for players.
+  observe() {
+    const g = this.g, live = new Set();
+    for (const s of g.squads) {
+      if (s.owner === this.i || !this.sees(s)) continue;
+      live.add(s.id);
+      const tr = this.track.get(s.id);
+      if (!tr || tr.owner !== s.owner) this.track.set(s.id, this.startTrack(s));
+      else this.follow(tr, s);
+    }
+    for (const id of [...this.track.keys()]) if (!live.has(id)) this.track.delete(id);
+  }
+  startTrack(s) {
+    const g = this.g, t = g.time;
+    const tr = { owner: s.owner, from: -1, x: s.x, y: s.y, t, born: t, vx: 0, vy: 0, cands: new Map(), anchored: t, read: -1, grp: null };
+    const fb = g.byId.get(s.from);
+    if (fb && Math.hypot(s.x - fb.x, s.y - fb.y) < g.radius(fb) + 40) {
+      // just walked out of fb: it could be on its way to any other building
+      tr.from = fb.id;
+      for (const b of g.buildings) {
+        if (b === fb) continue;
+        const pts = s.fly ? [{ x: fb.x, y: fb.y }, { x: b.x, y: b.y }] : g.nav.fullPath(fb.id, b.id);
+        if (pts && pts.length >= 2) tr.cands.set(b.id, cand(pts));
+      }
+      // squads sent together (a big send walks out in waves) share one guess
+      for (const o of this.track.values()) if (o.owner === s.owner && o.from === fb.id && t - o.born < 1.5) { tr.grp = o.grp; break; }
+      this.check(tr, s, false);
+    }
+    tr.grp = tr.grp || { guess: -1, roll: Math.random() };
+    if (!tr.cands.size) this.anchor(tr, s);
+    return tr;
+  }
+  /** start over from where the squad is now (it was turned around, pulled, rewound or seen mid-field) */
+  anchor(tr, s) {
+    const g = this.g;
+    tr.cands.clear(); tr.anchored = g.time; tr.read = -1; tr.from = -1;
+    for (const b of g.buildings) {
+      const rest = s.fly ? [{ x: b.x, y: b.y }] : g.nav.pathFrom(s.x, s.y, b.id);
+      tr.cands.set(b.id, cand([{ x: s.x, y: s.y }, ...rest]));
+    }
+  }
+  /** rule out every building whose road the squad has left, or that it is walking away from */
+  check(tr, s, moved = true) {
+    const tol = this.L.readTol || 20;
+    const dt = Math.max(0.05, this.g.time - tr.t);
+    const jump = moved && Math.hypot(s.x - tr.x, s.y - tr.y) > BASE_SPEED * 3 * dt + 30;   // Rewind and friends
+    for (const [id, c] of tr.cands) {
+      const pr = project(c, s.x, s.y);
+      if (pr.d > tol || (!jump && pr.a < c.prog - 25)) tr.cands.delete(id);
+      else c.prog = jump ? pr.a : Math.max(c.prog, pr.a);
+    }
+    return jump;
+  }
+  follow(tr, s) {
+    const g = this.g, t = g.time, dt = t - tr.t;
+    if (dt < 0.2) return;
+    // inside my own Mind Reader zone: I can see exactly where it's going
+    if (s.to !== tr.read && g.inZone('intel', s.x, s.y, z => z.o === this.i)) {
+      const tb = g.byId.get(s.to);
+      if (tb) {
+        tr.cands.clear(); tr.read = s.to; tr.anchored = t;
+        tr.cands.set(tb.id, cand([{ x: s.x, y: s.y }, ...(s.fly ? [{ x: tb.x, y: tb.y }] : g.nav.pathFrom(s.x, s.y, tb.id))]));
+      }
+    }
+    const jump = this.check(tr, s);
+    if (!tr.cands.size && t - tr.anchored > 0.6) this.anchor(tr, s);
+    if (jump) { tr.vx = 0; tr.vy = 0; }
+    else { tr.vx += ((s.x - tr.x) / dt - tr.vx) * 0.6; tr.vy += ((s.y - tr.y) / dt - tr.vy) * 0.6; }
+    tr.x = s.x; tr.y = s.y; tr.t = t;
+  }
+  /** how likely each building it might be going to is: [{ b, p }] */
+  odds(tr, s) {
+    const g = this.g, me = this.i, str = s.count * g.attack(s.owner, s), out = [];
+    let sum = 0;
+    for (const id of tr.cands.keys()) {
+      const b = g.byId.get(id);
+      if (!b) continue;
+      let w;
+      if (b.owner === s.owner) w = 0.6;   // just moving cats between its own buildings
+      else w = str > (b.owner === me ? b.count : this.est(b)) * g.defense(b) ? 2 : 1;   // a squad big enough to take it
+      out.push({ b, p: w }); sum += w;
+    }
+    for (const o of out) o.p /= sum || 1;
+    return out;
+  }
+  /** the building it believes the squad is going to, or null while it waits to see */
+  aimOf(tr, s, odds) {
+    if (!odds.length) return null;
+    if (odds.length === 1) return odds[0].b;
+    const G = tr.grp;
+    if (G.guess >= 0) {
+      const o = odds.find(o => o.b.id === G.guess);
+      if (o) return o.b;
+      G.guess = -1;   // that guess turned out wrong
+    }
+    // only worth a guess if one of mine might be the one
+    const mine = odds.filter(o => o.b.owner === this.i);
+    if (!mine.length) return null;
+    const spd = this.g.squadSpeed(s) || BASE_SPEED;
+    let eta = Infinity;
+    for (const o of mine) { const c = tr.cands.get(o.b.id); eta = Math.min(eta, (c.len - c.prog) / spd); }
+    if (G.roll >= (this.L.guess ?? 0.4) && eta > (this.L.panic ?? 2.5)) return null;   // wait and watch
+    let r = Math.random(), pick = odds[odds.length - 1].b;
+    for (const o of odds) { r -= o.p; if (r <= 0) { pick = o.b; break; } }
+    G.guess = pick.id;
+    return pick;
+  }
+  /** chance (0-1) that a rival squad is coming for one of my buildings */
+  pMine(s) {
+    const a = this.aim.get(s.id);
+    if (!a) return 0;
+    if (a.b) return a.b.owner === this.i ? 1 : 0;
+    return a.odds.reduce((n, o) => n + (o.b.owner === this.i ? o.p : 0), 0);
+  }
+
   update(dt) {
     if (this.g.over || !this.g.players[this.i].alive) return;
     this.updateIntel();
+    this.observe();
     this.timer -= dt;
     if (this.timer > 0) return;
     this.timer = this.L.think * (0.75 + Math.random() * 0.5);
@@ -91,14 +231,24 @@ export class AI {
     if (!mine.length) return;
     if (Math.random() < this.L.mistakes * 0.5) return; // daydreaming kitten
 
-    // Incoming pressure per building
-    this.incoming = new Map();
-    this.reinf = new Map();
+    // Incoming pressure per building, from where it BELIEVES each rival squad is going
+    const add = (m, id, n) => m.set(id, (m.get(id) || 0) + n);
+    this.incoming = new Map();   // rival cats (times their attack) it is sure, or has guessed, are coming for my building
+    this.reinf = new Map();      // cats walking in to help a building
+    this.maybe = new Map();      // rival cats that might be coming for my building (it can't tell yet)
+    this.aim = new Map();
     for (const s of g.squads) {
-      const b = g.byId.get(s.to);
-      if (!b) continue;
-      if (s.owner !== b.owner) this.incoming.set(b.id, (this.incoming.get(b.id) || 0) + s.count * g.attack(s.owner, s));
-      else this.reinf.set(b.id, (this.reinf.get(b.id) || 0) + s.count);
+      if (s.owner === me) { const b = g.byId.get(s.to); if (b && b.owner === me) add(this.reinf, b.id, s.count); continue; }
+      const tr = this.sees(s) && this.track.get(s.id);
+      if (!tr || g.time - tr.born < (this.L.notice ?? 1)) continue;   // hasn't spotted it yet
+      const odds = this.odds(tr, s), b = this.aimOf(tr, s, odds);
+      this.aim.set(s.id, { b, odds });
+      const str = s.count * g.attack(s.owner, s);
+      if (b) { if (b.owner === s.owner) add(this.reinf, b.id, s.count); else add(this.incoming, b.id, str); continue; }
+      for (const o of odds) {
+        if (o.b.owner === me) add(this.maybe, o.b.id, o.p * str);
+        else if (o.b.owner === s.owner) add(this.reinf, o.b.id, o.p * s.count);
+      }
     }
     const threatened = [];
     for (const b of mine) {
@@ -144,7 +294,7 @@ export class AI {
 
   tryUpgrade(mine) {
     const g = this.g;
-    const cand = mine.filter(b => b.type === 'cottage' && b.level < 5 && !this.threatened.includes(b) && !(this.incoming.get(b.id)))
+    const cand = mine.filter(b => b.type === 'cottage' && b.level < 5 && !this.threatened.includes(b) && !(this.incoming.get(b.id)) && !(this.maybe.get(b.id) > 8))
       .sort((a, c) => a.level - c.level);
     for (const b of cand) {
       const cost = g.upgradeCost(b);
@@ -198,7 +348,8 @@ export class AI {
       if (g.fx(tg, 'invuln') || g.fx(tg, 'cauldron') || (tg.owner >= 0 && g.fx(tg, 'bounce'))) continue;
       const srcs = mine
         .filter(b => !this.threatened.includes(b) && !this.blocked(b))
-        .map(b => ({ b, d: g.pathLen(b, tg), avail: b.count - this.reserve(b) }))
+        // keep enough cats home to hold off rival squads coming here (and some for ones that might be)
+        .map(b => ({ b, d: g.pathLen(b, tg), avail: b.count - this.reserve(b) - ((this.incoming.get(b.id) || 0) + (this.maybe.get(b.id) || 0) * 0.5) / g.defense(b) }))
         .filter(x => x.avail >= 2)
         .sort((a, c) => (a.b.id === this.preferSource ? -1 : 0) - (c.b.id === this.preferSource ? -1 : 0) || a.d - c.d);
       if (!srcs.length) continue;
@@ -269,7 +420,7 @@ export class AI {
   bestCluster(owners, r, pred = 0, filter) {
     const g = this.g;
     let best = null, bestN = 0;
-    const list = g.squads.filter(s => owners(s.owner) && s.wait <= 0 && (!filter || filter(s)));
+    const list = g.squads.filter(s => owners(s.owner) && s.wait <= 0 && this.sees(s) && (!filter || filter(s)));
     for (const c of list) {
       let n = 0;
       for (const s of list) if (Math.hypot(s.x - c.x, s.y - c.y) <= r * 0.85) n += s.count;
@@ -277,16 +428,13 @@ export class AI {
     }
     if (!best) return null;
     let x = best.x, y = best.y;
-    if (pred > 0 && best.path && best.path[best.wp]) {
-      const pt = best.path[best.wp];
-      const d = Math.hypot(pt.x - x, pt.y - y) || 1;
-      const mv = Math.min(d, g.squadSpeed(best) * pred);
-      x += (pt.x - x) / d * mv; y += (pt.y - y) / d * mv;
-    }
+    // lead a rival squad by the way it has been walking (it can't know the road ahead)
+    const tr = pred > 0 && this.track.get(best.id);
+    if (tr) { x += tr.vx * pred; y += tr.vy * pred; }
     return { x, y, n: bestN, s: best };
   }
   /** cats of a given side near a point */
-  catsNear(x, y, r, owners) { return this.g.squads.filter(s => owners(s.owner) && Math.hypot(s.x - x, s.y - y) <= r).reduce((a, s) => a + s.count, 0); }
+  catsNear(x, y, r, owners) { return this.g.squads.filter(s => owners(s.owner) && this.sees(s) && Math.hypot(s.x - x, s.y - y) <= r).reduce((a, s) => a + s.count, 0); }
 
   spellTarget(sp, mine) {
     const g = this.g, me = this.i, P = g.players[me];
@@ -295,7 +443,8 @@ export class AI {
     const isEnemy = o => o !== me, isMe = o => o === me;
     const maxBy = (arr, f) => arr.reduce((a, b) => (a == null || f(b) > f(a) ? b : a), null);
     const attacking = s => { const tg = g.byId.get(s.to); return tg && tg.owner !== me; };
-    const atMe = s => { const tg = g.byId.get(s.to); return tg && tg.owner === me; };
+    // heading for one of my buildings: my own squads I know, a rival's I only believe
+    const atMe = s => { if (s.owner === me) { const tg = g.byId.get(s.to); return !!tg && tg.owner === me; } return this.pMine(s) >= 0.5; };
     const r = sp.r || 120;
 
     if (AREA_ENEMY[sp.id] != null) {
@@ -487,13 +636,40 @@ export class AI {
       }
       case 'mindread': { const c = this.bestCluster(isEnemy, sp.r); return c && c.n >= 15 ? { x: c.x, y: c.y } : null; }
       case 'chain': {
-        const s = maxBy(g.squads.filter(q => q.owner !== me && q.wait <= 0), q => q.count + g.squads.filter(o => o.owner === q.owner && Math.hypot(o.x - q.x, o.y - q.y) < 220).length * 3);
+        const s = maxBy(g.squads.filter(q => q.owner !== me && q.wait <= 0 && this.sees(q)), q => q.count + g.squads.filter(o => o.owner === q.owner && this.sees(o) && Math.hypot(o.x - q.x, o.y - q.y) < 220).length * 3);
         // aim right on top of it so the chain can't start on my own cats
         return s && s.count >= 10 && this.catsNear(s.x, s.y, 120, isMe) === 0 ? { x: s.x, y: s.y } : null;
       }
     }
     return null;
   }
+}
+
+// building-to-building roads are shared arrays: work out their running lengths once
+const cumCache = new WeakMap();
+/** a road a squad might be walking: its points, the distance walked at each point, total length, and how far along it is */
+function cand(pts) {
+  let cum = cumCache.get(pts);
+  if (!cum) {
+    cum = [0];
+    for (let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y));
+    cumCache.set(pts, cum);
+  }
+  return { pts, cum, len: cum[cum.length - 1], prog: 0 };
+}
+/** how far point (x, y) is from a road (d), and how far along the road the nearest spot is (a) */
+function project(c, x, y) {
+  const { pts, cum } = c;
+  let bd = Infinity, ba = 0;
+  for (let k = 1; k < pts.length; k++) {
+    const p = pts[k - 1], q = pts[k], dx = q.x - p.x, dy = q.y - p.y, L2 = dx * dx + dy * dy;
+    let u = L2 > 0 ? ((x - p.x) * dx + (y - p.y) * dy) / L2 : 0;
+    u = u < 0 ? 0 : u > 1 ? 1 : u;
+    const ex = p.x + dx * u - x, ey = p.y + dy * u - y, d = ex * ex + ey * ey;
+    if (d < bd) { bd = d; ba = cum[k - 1] + u * Math.sqrt(L2); }
+  }
+  if (pts.length === 1) { bd = (pts[0].x - x) ** 2 + (pts[0].y - y) ** 2; ba = 0; }
+  return { d: Math.sqrt(bd), a: ba };
 }
 
 /** Length of segment a-b that lies within distance r of point c. */
