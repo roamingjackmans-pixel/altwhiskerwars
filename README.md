@@ -57,8 +57,8 @@ same site without touching each other.
 | | Wispera | Haunted House (temporary ghost defenders), Possession (an enemy building is yours for a while), Spirited Away (attacks on you hit a building you pick), Ghost Army (30-45 untouchable ghosts march into any building) |
 | 🤘 Gutter Punks | 👁 Morrow | Soul Snatcher (tower range up, kills join it), Untouchable, Slow-Mo Ring, Food Poisoning (garrison sickens, spreads, count revealed) |
 | | Ironclaw | Iron Seal (building loses a share of its cats every second), Mine Field (enemy cats become mines), Purr Thief (steal up to one star), Soul Harvest (cats knocked out nearby come back as yours) |
-| | Baron Bones | Crumble (building drops a level), Second Life (revive cats lost in the last 5s), Go Home (area: everyone turns back), Panic (garrison flees) |
-| | Cackle | Bone Rush (skeletons attack an enemy building), Copy Cat (use a rival's last skill once), Blood Pact (lost cats earn purr), Big Cauldron (an enemy building becomes a sealed level-1 stray) |
+| | Baron Bones | Second Life (revive cats lost in the last 5s), Crumble (building drops a level), Go Home (area: everyone turns back), Panic (garrison flees) |
+| | Cackle | Copy Cat (use a rival's last skill once), Bone Rush (skeletons attack an enemy building), Blood Pact (lost cats earn purr), Big Cauldron (an enemy building becomes a sealed level-1 stray) |
 | | Jinx | Defectors (enemy kittens walk to you), Charm Shield (no attacks allowed, attackers bounce home), Swap! (trade an enemy building for one of yours), Echo Hex (damage copied to nearby buildings) |
 | | Riddle | Each slot is a random hero's skill for that slot, rolled at the start of every battle |
 
