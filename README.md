@@ -28,7 +28,7 @@ Plus an **interactive tutorial**: a real battle with a coach card that walks you
 upgrading, switching buildings (towers up front, forges and gardens at the back), hidden armies, hero skills and
 how Purr Power is earned and lost. +600 🐟 the first time you finish it.
 
-**Play:** https://josephjackman.com/altwhiskerwars/
+**Play:** https://josephjackman.com/games/altwhiskerwars/
 
 Saves, room codes, friend codes and the update check are all separate from Whisker Wars, so both games can live on the
 same site without touching each other.
@@ -122,9 +122,10 @@ time they play, until it's answered).
 Upload the contents of `public/` to any web host (GitHub Pages, Netlify, Cloudflare Pages, your own site,
 or a sub-folder of one). It runs in peer-to-peer mode. Done.
 
-This repo already does this: `.github/workflows/pages.yml` publishes `public/` to GitHub Pages on every
-push to `main`. The site appears under the account's custom domain at `/altwhiskerwars/` because the repo
-is named `altwhiskerwars`.
+This repo is published this way at `josephjackman.com/games/altwhiskerwars/`: `.github/workflows/ready.yml`
+moves the `ready` branch to every push to `main`, and the [games](https://github.com/roamingjackmans-pixel/games)
+repo, which publishes every game on josephjackman.com/games/, picks it up within 10 minutes (right away when
+this repo has a `GAMES_DEPLOY_TOKEN` secret), switching `public/config.js` to peer-to-peer mode.
 Each deploy stamps the version shown on the home screen, e.g. `v1.3.42 · 1a2b3c4`: major.minor come from
 `package.json`, the last number counts commits, and the 7 characters are the commit.
 
