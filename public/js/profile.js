@@ -133,7 +133,7 @@ function checkAchievements(ctx) {
   if (ctx.realWin && ctx.time > 0 && ctx.time < 180) g('speedy');
   // beating a harder computer counts for every easier one too
   const rank = AI_RANK.indexOf(ctx.ai);
-  for (const lv of ['insane', 'brutal', 'mythic']) if (ctx.realWin && rank >= AI_RANK.indexOf(lv)) g(lv);
+  for (const lv of ['insane', 'brutal', 'mythic', 'apex']) if (ctx.realWin && rank >= AI_RANK.indexOf(lv)) g(lv);
   if (CAMPAIGN.every(l => (P.campaign[l.id] || 0) > 0)) g('campaign');
   if (P.furs.length + P.hats.length - 3 >= 5) g('fashion');
   if (ctx.peakArmy >= 200) g('army200');

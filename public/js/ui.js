@@ -1235,7 +1235,7 @@ SCREENS.practice = () => {
   $('.start').onclick = () => playPractice();
 };
 /** computer cats get stronger skills on harder settings (and the campaign's boss levels) */
-const AI_SKILL_LV = { easy: 1, normal: 2, hard: 3, insane: 4, brutal: 5, mythic: 5 };
+const AI_SKILL_LV = { easy: 1, normal: 2, hard: 3, insane: 4, brutal: 5, mythic: 5, apex: 5 };
 function aiSkills(heroId, ai, boss = false) {
   const h = heroById(heroId);
   const base = AI_SKILL_LV[ai] || 1;
