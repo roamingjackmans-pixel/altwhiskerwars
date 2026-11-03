@@ -1,5 +1,5 @@
 // Player profile, currency, unlocks and achievements (saved in this browser).
-import { HEROES, FURS, HATS, ACHIEVEMENTS, COINS, AI_LEVELS, CAMPAIGN, LEGACY_CAMPAIGN, HERO_BY_ID, LEGACY_HEROES, SKILL_MAX, skillUpgradeCost } from '../shared/data.js';
+import { HEROES, FURS, HATS, ACHIEVEMENTS, COINS, AI_LEVELS, AI_RANK, CAMPAIGN, LEGACY_CAMPAIGN, HERO_BY_ID, LEGACY_HEROES, SKILL_MAX, skillUpgradeCost } from '../shared/data.js';
 
 const KEY = 'altwhiskerwars.profile.v1';
 const NAMES = ['Spike', 'Ziggy', 'Razor', 'Jinx', 'Vex', 'Riot', 'Static', 'Glitch', 'Fang', 'Hex', 'Neon', 'Grimm', 'Vandal', 'Rebel', 'Moshpit'];
@@ -131,7 +131,9 @@ function checkAchievements(ctx) {
   if (P.heroes.length >= 5) g('heroes5');
   if (ctx.realWin && ctx.lostBuildings === 0) g('flawless');
   if (ctx.realWin && ctx.time > 0 && ctx.time < 180) g('speedy');
-  if (ctx.realWin && ctx.ai === 'insane') g('insane');
+  // beating a harder computer counts for every easier one too
+  const rank = AI_RANK.indexOf(ctx.ai);
+  for (const lv of ['insane', 'brutal', 'mythic']) if (ctx.realWin && rank >= AI_RANK.indexOf(lv)) g(lv);
   if (CAMPAIGN.every(l => (P.campaign[l.id] || 0) > 0)) g('campaign');
   if (P.furs.length + P.hats.length - 3 >= 5) g('fashion');
   if (ctx.peakArmy >= 200) g('army200');

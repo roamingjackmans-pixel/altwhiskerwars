@@ -327,6 +327,7 @@ input:focus, select:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgb
 /* ---------- setup / practice ---------- */
 .setup { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
 .setup .seg .btn { min-width: 92px; }
+.setup .ai-info { margin: 2px 0 10px; }
 .setup .row { margin: 10px 0 14px; }
 .setup .start { margin-top: 16px; }
 

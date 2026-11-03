@@ -1202,6 +1202,7 @@ SCREENS.practice = () => {
         <div class="seg n-seg">${[2, 3, 4].map(n => `<button class="btn small ${(sp.players || 2) === n ? 'on' : ''}" data-n="${n}">${'🐱'.repeat(n)}<small>${n} players</small></button>`).join('')}</div>
         <h3>Opponent<span class="opp-n muted small"></span></h3>
         <div class="seg ai-seg">${Object.entries(AI_LEVELS).map(([k, v]) => `<button class="btn small ${sp.ai === k ? 'on' : ''}" data-ai="${k}">${v.name}<small>${k}</small></button>`).join('')}</div>
+        <div class="ai-info muted small"></div>
         <div class="row"><label>Enemy hero:</label><select class="enemy-sel"><option value="random">🎲 Random</option>${HEROES.map(h => `<option value="${h.id}" ${sp.enemy === h.id ? 'selected' : ''}>${h.name}</option>`).join('')}</select></div>
         <h3>Battlefield</h3><div class="pr-maps"></div>
         <div class="pr-rules"></div>
@@ -1221,16 +1222,23 @@ SCREENS.practice = () => {
   };
   drawMaps();
   $$('[data-n]').forEach(b => b.onclick = () => { sp.players = +b.dataset.n; $$('[data-n]').forEach(x => x.classList.toggle('on', x === b)); drawMaps(); });
-  $$('[data-ai]').forEach(b => b.onclick = () => { sp.ai = b.dataset.ai; $$('[data-ai]').forEach(x => x.classList.toggle('on', x === b)); });
+  // what the chosen computer pays and what it gets
+  const drawAi = () => {
+    const L = AI_LEVELS[sp.ai] || AI_LEVELS.normal, bp = Math.round((L.bonusProd || 0) * 100);
+    $('.ai-info').textContent = `🐟 ${L.coinsWin} for a win, ${L.coinsLoss} for a loss · ${bp > 0 ? '+' : ''}${bp}% kittens · its skills at level ${AI_SKILL_LV[sp.ai] || 1}`;
+  };
+  drawAi();
+  $$('[data-ai]').forEach(b => b.onclick = () => { sp.ai = b.dataset.ai; $$('[data-ai]').forEach(x => x.classList.toggle('on', x === b)); drawAi(); });
   $('.enemy-sel').onchange = ev => { sp.enemy = ev.target.value; };
   const drawRules = () => { $('.pr-rules').innerHTML = rulesRow(sp.rules, false); $$('.pr-rules .rule-btn').forEach(b => b.onclick = () => { sp.rules = { ...sp.rules, [b.dataset.rule]: !sp.rules[b.dataset.rule] }; drawRules(); }); };
   drawRules();
   $('.start').onclick = () => playPractice();
 };
 /** computer cats get stronger skills on harder settings (and the campaign's boss levels) */
+const AI_SKILL_LV = { easy: 1, normal: 2, hard: 3, insane: 4, brutal: 5, mythic: 5 };
 function aiSkills(heroId, ai, boss = false) {
   const h = heroById(heroId);
-  const base = { easy: 1, normal: 2, hard: 3, insane: 4 }[ai] || 1;
+  const base = AI_SKILL_LV[ai] || 1;
   const lv = Math.min(SKILL_MAX, base + (boss ? 1 : 0));
   return h ? Object.fromEntries(h.spells.map(s => [s.id, lv])) : {};
 }

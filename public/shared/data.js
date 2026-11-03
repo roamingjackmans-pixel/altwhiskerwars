@@ -1456,7 +1456,12 @@ export const AI_LEVELS = {
   normal: { name: 'House Cat', think: 2.0, aggression: 0.6,  spellUse: 0.55, upgrade: 0.55, mistakes: 0.15, coinsWin: 210, coinsLoss: 75,  bonusProd: -0.08, readTol: 22, guess: 0.4,  notice: 1.0,  panic: 2.5 },
   hard:   { name: 'Alley Boss', think: 1.0, aggression: 0.85, spellUse: 0.9, upgrade: 0.8,  mistakes: 0.04, coinsWin: 300, coinsLoss: 105, bonusProd: 0.05,  readTol: 16, guess: 0.25, notice: 0.6,  panic: 3.0 },
   insane: { name: 'Lion King', think: 0.5, aggression: 1.0,  spellUse: 1.0,  upgrade: 0.95, mistakes: 0.0,  coinsWin: 420, coinsLoss: 135, bonusProd: 0.2,   readTol: 13, guess: 0.15, notice: 0.35, panic: 3.5 },
+  // practice only: beyond the Lion King (skills at max level, more kittens, sharper eyes)
+  brutal: { name: 'Tiger Tyrant', think: 0.4, aggression: 1.0, spellUse: 1.0, upgrade: 1.0, mistakes: 0.0,  coinsWin: 560, coinsLoss: 180, bonusProd: 0.3,   readTol: 11, guess: 0.1,  notice: 0.25, panic: 4.0 },
+  mythic: { name: 'Sabertooth', think: 0.35, aggression: 1.0, spellUse: 1.0, upgrade: 1.0, mistakes: 0.0,  coinsWin: 720, coinsLoss: 225, bonusProd: 0.4,   readTol: 10, guess: 0.08, notice: 0.2,  panic: 4.0 },
 };
+/** how hard each level is, easiest first (beating a level counts as beating every one below it) */
+export const AI_RANK = Object.keys(AI_LEVELS);
 
 // ---------------- Campaign ----------------
 // One level for every hero, getting harder as you go. Every two-player map is used once; the five 'random' levels
@@ -1505,6 +1510,8 @@ export const ACHIEVEMENTS = [
   { id: 'flawless',   name: 'Untouchable',      desc: 'Win without losing a single building.',     reward: 600 },
   { id: 'speedy',     name: 'Zoomies',          desc: 'Win a match in under 3 minutes.',           reward: 600 },
   { id: 'insane',     name: 'Lion Tamer',       desc: 'Beat the Lion King (Insane) AI.',           reward: 900 },
+  { id: 'brutal',     name: 'Tiger Tamer',      desc: 'Beat the Tiger Tyrant (Brutal) AI.',        reward: 1200 },
+  { id: 'mythic',     name: 'Saber Slayer',     desc: 'Beat the Sabertooth (Mythic) AI.',          reward: 1600 },
   { id: 'campaign',   name: 'Legend of the Litter', desc: 'Finish the whole campaign.',            reward: 1500 },
   { id: 'fashion',    name: 'Thrift Store Icon', desc: 'Own 5 cosmetic items.',                     reward: 300 },
   { id: 'army200',    name: 'Cat Riot',         desc: 'Have 200 cats at once.',                    reward: 450 },
