@@ -4,12 +4,12 @@
 //    whose phone or network can't connect directly: if the direct connection fails or hasn't opened within
 //    6 s, their messages go through public MQTT servers over secure websockets instead (relay.js). The host
 //    always listens there too. (PeerJS's own free relay server has shut down.)
-// A room has a host and up to 3 guests. Guests are numbered by slot (1-3). Events: 'message'(data, fromSlot),
+// A room has a host and up to 4 guests. Guests are numbered by slot (1-4). Events: 'message'(data, fromSlot),
 // 'peer-join'(slot), 'peer-leave'(slot); a guest hears from the host as slot 0. send(data, toSlot?) on the
 // host goes to one guest or, without a slot, to all of them.
 import { RelayHost, RelayGuest } from './relay.js';
 
-const MAX_GUESTS = 3;
+const MAX_GUESTS = 4;
 const RTC_WAIT = 6000;    // how long the direct connection gets before a guest tries the relay as well
 // ?forcerelay in the page address skips the direct connection, for testing the relay
 const FORCE_RELAY = typeof location !== 'undefined' && /[?&]forcerelay\b/.test(location.search);
@@ -175,7 +175,7 @@ export class P2PTransport extends Emitter {
     }
     throw lastErr || new Error('Could not create room');
   }
-  /** host: the same player reconnecting takes back their slot; otherwise the next free one (up to 3 guests) */
+  /** host: the same player reconnecting takes back their slot; otherwise the next free one (up to 4 guests) */
   _slotFor(pid) {
     let slot = 0;
     for (const [s, c] of this.conns) if (pid && c.metadata && c.metadata.pid === pid) { slot = s; this.conns.delete(s); try { c.close(); } catch {} }

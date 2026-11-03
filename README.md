@@ -84,14 +84,14 @@ Open http://localhost:8080. To test online play by yourself, open a second brows
 
 | Feature | Details |
 | --- | --- |
-| Online, 2-4 players | 5-number room codes + invite links (`?room=CODE`), lobby for 2, 3 or 4 players with hero/map/time pick (only maps for that many players), every player's 4 skills listed on their card (at the levels they'll battle with), ready check, emotes, rematch, ping display, 20-second reconnect if someone's connection drops (with 3-4 players, someone who doesn't come back is knocked out and the battle carries on) |
+| Online, 2-5 players | 5-number room codes + invite links (`?room=CODE`), lobby for 2, 3, 4 or 5 players with hero/map/time pick (only maps for that many players), every player's 4 skills listed on their card (at the levels they'll battle with), ready check, emotes, rematch, ping display, 20-second reconnect if someone's connection drops (with 3-5 players, someone who doesn't come back is knocked out and the battle carries on) |
 | Friends | Every player has an 8-number friend code. Adding someone (by code, or with one tap on a player in the lobby) sends a friend request; if they're offline it waits for them and they can add you back next time they play. The **Friends** section on the home screen lists requests waiting for you (with a badge), your friends (online / playing / offline, and requests you sent that haven't been answered) and people you played recently. Friends with the game open show as online: tap **Invite** and they get a popup that drops them straight into your room |
 | Fun modifiers | Zoomies (fast cats), Catnip Frenzy, Kitten Boom, Big Start — toggle in the lobby or practice setup |
 | 24 heroes | 4 clans, each hero has 4 skills (96 skills), each skill levels 1-5 with fish; heroes unlocked with fish coins earned by playing |
 | 5 building types | Kitten Cottage (5 levels), Scratch Tower, Yarn Forge, Catnip Garden, Grand Cat Tree. Upgrade or convert any time |
-| Maps | 35 maps. 2 players: 6 open fields and 13 with terrain (ponds, rivers, islands joined by bridges, hedges, walls, snow ridges, dirt mounds) that make cats walk the long way round. 3 players: 3 compact maps that repeat three ways around the middle, and 5 that fill the whole field without being symmetric (each seat has a different spot, kept fair by equal road lengths and tuned strays). 4 players: 8 maps mirrored into every corner. Open and terrain maps for each player count. Random maps (2 players) get lumps and ponds too. Each player's view is turned so their own base is at the bottom / left |
+| Maps | 47 maps. 2 players: 6 open fields and 13 with terrain (ponds, rivers, islands joined by bridges, hedges, walls, snow ridges, dirt mounds) that make cats walk the long way round. 3 players: 3 compact maps that repeat three ways around the middle, and 5 that fill the whole field without being symmetric (each seat has a different spot, kept fair by equal road lengths and tuned strays). 4 players: 8 maps mirrored into every corner and 3 that are not symmetric (Lonely Glacier, Alleycat Blocks, Fudge Fork). 5 players: 5 compact maps that repeat five ways around the middle (2 open, 3 with terrain) and 4 non-symmetric maps with terrain (Lantern Labyrinth, Starfish Lagoon, Millbrook Valley, Five Peak Pass). The non-symmetric maps give each seat different ground and were kept fair with thousands of AI-vs-AI games. Open and terrain maps for each player count. Random maps (2 players) get lumps and ponds too. Each player's view is turned so their own base is at the bottom / left |
 | Core mechanics | Drag-to-send (the arrow shows the road your cats will take), swipe across buildings for multi-send, 25/50/75/100% send, field battles between squads, towers, Purr Power stars (army morale: +25% defense, +5% attack, +10% speed per star), catnip skill energy (starts at 0). A building taken from the other player drops one upgrade level. Nobody can see how many cats are inside another player's buildings (they show **?**, strays stay visible; the AI only guesses too): only Doctor Whirl (Spy Eye) and Morrow (Food Poisoning) can look inside. Unowned towers shoot at everyone's cats until someone takes them. Unowned buildings grow back to their starting cats a few seconds after a failed attack (bigger ones faster: a full refill takes about 24 s); your own towers grow back lost cats at the kitten rate; towers, forges and gardens never shrink on their own |
-| Solo | Interactive tutorial, 24-level campaign (one rival per hero) with 3-star ratings, practice against 1-3 computer cats at 7 difficulties (Tiger Tyrant, Sabertooth and Tyrannosaurus-Cat go beyond the Lion King with +30% / +50% / +75% kittens and maxed skills, and pay more fish), live AI battle on the menu background |
+| Solo | Interactive tutorial, 24-level campaign (one rival per hero) with 3-star ratings, practice against 1-4 computer cats at 7 difficulties (Tiger Tyrant, Sabertooth and Tyrannosaurus-Cat go beyond the Lion King with +30% / +50% / +75% kittens and maxed skills, and pay more fish), live AI battle on the menu background |
 | Progression | Coins, XP & levels, daily gift, first-win bonus, 13 achievements, 40 furs + 37 hats (your whole army wears them; the 25 newest of each get weirder and pricier, up to 100,000 🐟), match history |
 | Polish | Procedural art, synthesized music & SFX, spell VFX, screen shake, keyboard shortcuts |
 | Phones | Own layout, on by default on phones: the field stands up in portrait (your base at the bottom), zooms onto the buildings, big tap zones, thumb dock (send %, 🐾 ALL, spells), compact upgrade bar, hold-to-read spells, vibration, optional full screen battles on Android (off unless you turn it on in Settings), screen stays awake, back button opens the battle menu. Settings → Battle layout overrides it. Settings → 📲 Download app installs it on the home screen or desktop (the browser's install prompt in Chrome, Edge and Android; step-by-step help on iPhone, iPad, Safari and Firefox) |
@@ -108,7 +108,7 @@ it to the guest 10×/second. Moves travel through one of two connections, chosen
 
 Joining tries the server first, then peer-to-peer, so both kinds of rooms work from the same page.
 
-A room holds up to 4 players: the host runs the battle and streams it to up to 3 guests.
+A room holds up to 5 players: the host runs the battle and streams it to up to 4 guests.
 
 Friends (online status and invites) always go peer-to-peer: once a player has opened Battle a Friend (or has friends)
 they keep a small PeerJS "presence" peer open while the game is open, and an invite is a short message carrying the room code.
@@ -156,9 +156,10 @@ node tools/probe.mjs whirl    # one hero vs everyone (add a spell id to disable 
 node tools/skilltest.mjs      # casts every hero's every skill in a live battle
 node tools/relaytest.mjs      # tests the WebSocket relay with a host and 3 guests (server must be running)
 node tools/rejointest.mjs     # tests reconnecting into a room (server must be running)
-node tools/lobbytest.mjs      # tests the 2-4 player lobby/match message protocol in memory
-node tools/seats.mjs          # 3-4 player maps: road length between bases, strays each seat reaches first, how close seats touch
+node tools/lobbytest.mjs      # tests the 2-5 player lobby/match message protocol in memory
+node tools/seats.mjs          # 3-5 player maps: road length between bases, strays each seat reaches first, how close seats touch
 node tools/seatsim.mjs tripass 900  # does a map favour a seat? same hero and AI on every seat, many games
+node tools/mapcheck.mjs my-map.mjs 150  # try a new map from its own file (default export) before adding it: problems, drawing, seats, sims
 ```
 
 Add `?p2p` to the page URL to force peer-to-peer mode even when the server is available.

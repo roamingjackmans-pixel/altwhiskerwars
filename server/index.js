@@ -20,7 +20,7 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg',
 };
 
-/** code -> { host, guests: Map(seat 1-3 -> socket), created } */
+/** code -> { host, guests: Map(seat 1-4 -> socket), created } */
 const rooms = new Map();
 let totalConnections = 0;
 
@@ -71,7 +71,7 @@ function send(ws, obj) {
   if (ws && ws.readyState === 1) ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj));
 }
 
-const MAX_GUESTS = 3; // rooms hold up to 4 players
+const MAX_GUESTS = 4; // rooms hold up to 5 players
 
 function leaveRoom(ws) {
   const code = ws.room;

@@ -97,7 +97,7 @@ export class Match {
     }
     // Player 2 sees the (point-symmetric) map turned around, so everyone's base starts on the left
     // (or at the bottom when a portrait screen shows the field standing up).
-    // 2 players: player 2 sees the field turned around. 3-4 players: the view is mirrored so your own base
+    // 2 players: player 2 sees the field turned around. 3-5 players: the view is mirrored so your own base
     // sits on the left (landscape) / bottom, wherever your seat is.
     const home = (this.info.buildings || []).find(b => b.o === this.me);
     if ((this.info.players || []).length > 2 && home) {

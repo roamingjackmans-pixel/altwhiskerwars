@@ -1709,7 +1709,7 @@ export class Game {
   // ---------- network views ----------
   staticInfo() {
     return {
-      map: { id: this.cfg.map.id, name: this.cfg.map.name, theme: this.cfg.map.theme, seed: this.cfg.seed, obstacles: this.cfg.map.obstacles || [], players: this.players.length, rot3: this.cfg.map.rot3 || null },
+      map: { id: this.cfg.map.id, name: this.cfg.map.name, theme: this.cfg.map.theme, seed: this.cfg.seed, obstacles: this.cfg.map.obstacles || [], players: this.players.length, rot3: this.cfg.map.rot3 || null, rot5: this.cfg.map.rot5 || null },
       buildings: this.buildings.map(b => ({ id: b.id, x: b.x, y: b.y, r: this.nav.radiusOf(b.id), o: this.cfg.map.buildings.find(m => m.id === b.id)?.owner ?? -1 })),
       // slots: the skill in each slot this battle (Riddle's are random), lvs: their levels
       players: this.players.map(p => ({ name: p.name, hero: p.heroId, fur: p.fur, hat: p.hat, ai: p.ai, skills: p.skills, slots: p.slots.map(q => q.sp.id), lvs: p.slots.map(q => q.lv) })),

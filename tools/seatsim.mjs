@@ -16,7 +16,7 @@ for (const id of idArg.split(',')) {
   const t0 = Date.now();
   for (let g = 0; g < N; g++) {
     const hero = HEROES[(g * 5 + seed0) % HEROES.length].id, lv = levels[g % levels.length];
-    const game = new Game({ map: structuredClone(map), seed: seed0 * 1000 + g, players: Array.from({ length: n }, (_, i) => ({ name: 'ABCD'[i], hero, ai: lv })) });
+    const game = new Game({ map: structuredClone(map), seed: seed0 * 1000 + g, players: Array.from({ length: n }, (_, i) => ({ name: 'ABCDE'[i], hero, ai: lv })) });
     const ais = Array.from({ length: n }, (_, i) => new AI(game, i, lv));
     let steps = 0;
     const order = ais.slice();

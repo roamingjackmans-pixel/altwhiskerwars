@@ -148,9 +148,10 @@ const DIRS = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, Math.SQRT2], 
 // ---------------- the nav mesh ----------------
 export class Nav {
   /** buildings: [{id, x, y, r? | type+level}], obstacles: raw map obstacles */
-  /** opts.rot3: [cx, cy] for 3-player maps that repeat three times around that point */
+  /** opts.rot3 / opts.rot5: [cx, cy] for 3 / 5 player maps that repeat three / five times around that point */
   constructor(buildings, obstacles, opts = {}) {
     this.rot3 = Array.isArray(opts.rot3) ? opts.rot3 : null;
+    this.rot = this.rot3 ? [...this.rot3, 3] : Array.isArray(opts.rot5) ? [...opts.rot5, 5] : null;
     this.shapes = normalizeObstacles(obstacles);
     this.hasTerrain = this.shapes.length > 0;
     this.blockTest = makeBlockTest(this.shapes);
@@ -223,12 +224,12 @@ export class Nav {
       const map = this.B.map(b => { const q = k.f(b); return this.B.findIndex(o => Math.abs(o.x - q.x) < 0.01 && Math.abs(o.y - q.y) < 0.01 && Math.abs(o.r - b.r) < 0.01); });
       if (map.some(m => m >= 0)) out.push({ map, f: k.f, inv: k.f, exact: true });
     }
-    // 3-player maps: the layout repeats every 120° around rot3, so one seat's roads, turned, serve the others
-    if (this.rot3) {
-      const [cx, cy] = this.rot3;
-      const turnBy = k => { const a = k * 2 * Math.PI / 3, c = Math.cos(a), s = Math.sin(a); return p => ({ x: cx + (p.x - cx) * c - (p.y - cy) * s, y: cy + (p.x - cx) * s + (p.y - cy) * c }); };
-      for (const k of [1, 2]) {
-        const f = turnBy(k), inv = turnBy(3 - k);
+    // 3 and 5 player maps: the layout repeats every 120° (72°) around its centre, so one seat's roads, turned, serve the others
+    if (this.rot) {
+      const [cx, cy, n] = this.rot;
+      const turnBy = k => { const a = k * 2 * Math.PI / n, c = Math.cos(a), s = Math.sin(a); return p => ({ x: cx + (p.x - cx) * c - (p.y - cy) * s, y: cy + (p.x - cx) * s + (p.y - cy) * c }); };
+      for (let k = 1; k < n; k++) {
+        const f = turnBy(k), inv = turnBy(n - k);
         const map = this.B.map(b => { const q = f(b); return this.B.findIndex(o => Math.abs(o.x - q.x) < 1.5 && Math.abs(o.y - q.y) < 1.5 && Math.abs(o.r - b.r) < 0.01); });
         if (map.some(m => m >= 0)) out.push({ map, f, inv, exact: false });
       }
@@ -399,10 +400,10 @@ export function polyLen(pts) {
 const cache = new Map();
 export function getNav(map) {
   const buildings = (map.buildings || []).map(b => ({ id: b.id, x: b.x, y: b.y, r: navRadius(b) }));
-  const key = JSON.stringify([buildings.map(b => [b.id, b.x, b.y, b.r]), map.obstacles || [], map.rot3 || 0]);
+  const key = JSON.stringify([buildings.map(b => [b.id, b.x, b.y, b.r]), map.obstacles || [], map.rot3 || 0, map.rot5 || 0]);
   let nav = cache.get(key);
   if (nav) { cache.delete(key); cache.set(key, nav); return nav; }
-  nav = new Nav(buildings, map.obstacles || [], { rot3: map.rot3 });
+  nav = new Nav(buildings, map.obstacles || [], { rot3: map.rot3, rot5: map.rot5 });
   cache.set(key, nav);
   if (cache.size > 12) cache.delete(cache.keys().next().value);
   return nav;

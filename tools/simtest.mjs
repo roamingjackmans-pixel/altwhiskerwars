@@ -12,10 +12,10 @@ for (let g = 0; g < N; g++) {
   const h0 = HEROES[g % HEROES.length].id, h1 = HEROES[(g * 5 + 3) % HEROES.length].id;
   const lv = levels[(g >> 1) % 4];
   const n = map.players || 2;
-  const heroes = [h0, h1, HEROES[(g * 7 + 1) % HEROES.length].id, HEROES[(g * 11 + 5) % HEROES.length].id].slice(0, n);
-  // 3-4 players: the opponents get a mix of levels (three Easy cats left alone can slap each other for ages)
+  const heroes = [h0, h1, HEROES[(g * 7 + 1) % HEROES.length].id, HEROES[(g * 11 + 5) % HEROES.length].id, HEROES[(g * 13 + 2) % HEROES.length].id].slice(0, n);
+  // 3-5 players: the opponents get a mix of levels (three Easy cats left alone can slap each other for ages)
   const lvls = heroes.map((_, i) => (i === 0 ? 'hard' : levels[((g >> 1) + i - 1) % 4]));
-  const game = new Game({ map: structuredClone(map), seed: 77 + g, players: heroes.map((h, i) => ({ name: 'ABCD'[i], hero: h, ai: lvls[i] })) });
+  const game = new Game({ map: structuredClone(map), seed: 77 + g, players: heroes.map((h, i) => ({ name: 'ABCDE'[i], hero: h, ai: lvls[i] })) });
   const ais = heroes.map((_, i) => new AI(game, i, lvls[i]));
   let steps = 0;
   try {

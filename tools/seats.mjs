@@ -1,4 +1,4 @@
-// Seat balance for 3 and 4 player maps (they don't have to be symmetric): node tools/seats.mjs [mapId ...] [--draw]
+// Seat balance for 3, 4 and 5 player maps (they don't have to be symmetric): node tools/seats.mjs [mapId ...] [--draw]
 // For every seat: walking distance to each rival base, the strays it reaches first (by road, worth weighted by type
 // and level, with their garrisons), and its opening (the nearest strays). Flags a map whose seats differ too much.
 import { MAPS, WORLD_W, WORLD_H } from '../public/shared/data.js';
@@ -10,7 +10,7 @@ export const worth = b => b.type === 'cattree' ? 2.4 : b.type === 'cottage' ? 1 
 const TIE = 0.04;   // roads within 4% of each other count as a shared stray
 
 export function seatReport(map) {
-  const nav = new Nav(map.buildings, map.obstacles || [], { rot3: map.rot3 });
+  const nav = new Nav(map.buildings, map.obstacles || [], { rot3: map.rot3, rot5: map.rot5 });
   const B = map.buildings, n = map.players || 2;
   const homes = Array.from({ length: n }, (_, s) => B.find(b => b.owner === s));
   const strays = B.filter(b => b.owner < 0);

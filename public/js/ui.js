@@ -117,7 +117,7 @@ function startAttract() {
   const r = a => a[Math.floor(Math.random() * a.length)];
   attract = new Match(canvas, hudRoot, {
     mode: 'attract', role: 'local', me: -1, fxLevel: 'medium',
-    cfg: { map, seed: (Math.random() * 1e9) | 0, timeLimit: 400, players: Array.from({ length: seats }, (_, i) => { const hero = pick(); return { name: 'ABCD'[i], hero, fur: r(furs), hat: r(hats), ai: 'normal', skills: aiSkills(hero, 'normal') }; }) },
+    cfg: { map, seed: (Math.random() * 1e9) | 0, timeLimit: 400, players: Array.from({ length: seats }, (_, i) => { const hero = pick(); return { name: 'ABCDE'[i], hero, fur: r(furs), hat: r(hats), ai: 'normal', skills: aiSkills(hero, 'normal') }; }) },
     onEnd: () => { stopAttract(); if (!match) startAttract(); },
   });
   attract.start(0);
@@ -695,7 +695,7 @@ SCREENS.lobby = () => {
       <div class="lobby-cols">
         <div class="card panel"><h3>Choose your hero</h3><div class="lobby-heroes"></div><div class="lobby-hero-detail"></div></div>
         <div class="card panel"><h3>Battlefield ${S.isHost ? '' : '<span class="muted small">(host picks)</span>'}</h3>
-          <div class="size-row">Players: ${[2, 3, 4].map(n => `<button class="btn small size-btn" data-n="${n}" ${S.isHost ? '' : 'disabled'}>${'🐱'.repeat(n)} ${n}</button>`).join('')}</div>
+          <div class="size-row">Players: ${[2, 3, 4, 5].map(n => `<button class="btn small size-btn" data-n="${n}" ${S.isHost ? '' : 'disabled'}>${'🐱'.repeat(n)} ${n}</button>`).join('')}</div>
           <div class="lobby-maps"></div>
           <div class="time-row">Time limit: ${[300, 480, 600, 900].map(t => `<button class="btn small time-btn" data-t="${t}" ${S.isHost ? '' : 'disabled'}>${t / 60} min</button>`).join('')}</div>
           <div class="lobby-rules"></div>
@@ -897,7 +897,7 @@ function wireSessionToMatch(m) {
   const S = session;
   S.inMatch = true;
   // How long players get to come back:
-  //  - LOST: their connection dropped. 2 players: the battle pauses and waits. 3-4 players: everyone else keeps
+  //  - LOST: their connection dropped. 2 players: the battle pauses and waits. 3-5 players: everyone else keeps
   //    playing while the dropped player gets the time to reconnect.
   //  - AWAY: their app was covered or paused (a notification pop-up, the edge panel, another app...) and their
   //    phone said so. Nobody else's battle pauses; they just get a minute to come back.
@@ -1199,7 +1199,7 @@ SCREENS.practice = () => {
       <div class="card panel"><h3>Your hero</h3><div class="pr-heroes"></div><div class="pr-detail"></div></div>
       <div class="card panel">
         <h3>Players</h3>
-        <div class="seg n-seg">${[2, 3, 4].map(n => `<button class="btn small ${(sp.players || 2) === n ? 'on' : ''}" data-n="${n}">${'🐱'.repeat(n)}<small>${n} players</small></button>`).join('')}</div>
+        <div class="seg n-seg">${[2, 3, 4, 5].map(n => `<button class="btn small ${(sp.players || 2) === n ? 'on' : ''}" data-n="${n}">${'🐱'.repeat(n)}<small>${n} players</small></button>`).join('')}</div>
         <h3>Opponent<span class="opp-n muted small"></span></h3>
         <div class="seg ai-seg">${Object.entries(AI_LEVELS).map(([k, v]) => `<button class="btn small ${sp.ai === k ? 'on' : ''}" data-ai="${k}">${v.name}<small>${k}</small></button>`).join('')}</div>
         <div class="ai-info muted small"></div>

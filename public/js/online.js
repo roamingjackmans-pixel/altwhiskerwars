@@ -1,12 +1,12 @@
 // Whisker Wars online session: lobby + match messaging over a transport (server relay or P2P).
-// The host runs the game for everyone. Guests join a free seat (1-3, up to the lobby's player count); the
+// The host runs the game for everyone. Guests join a free seat (1-4, up to the lobby's player count); the
 // transport numbers guests by slot and the session keeps track of which slot sits in which seat.
 import { hostRoom, joinRoom } from './net.js';
 import { publicProfile, profile } from './profile.js';
 import { onAway, onBack, isAway } from './lifecycle.js';
 
 const PROTO = 2;
-const SEATS = 4;
+const SEATS = 5;
 // a relayed connection to a player (or host) who stepped away may stay silent this long before it counts as gone
 export const AWAY_PATIENCE = 125000;
 
@@ -183,7 +183,7 @@ export class OnlineSession {
     if (this.isHost) { this.lobby.ready[0] = !!v; this.broadcast(); }
     else { this.lobby.ready[this.me] = !!v; this.send({ type: 'ready', v: !!v }); this.emit('lobby', this.lobby); }
   }
-  /** host: 2, 3 or 4 players (never fewer seats than players already here); `map` fits the new count */
+  /** host: 2 to 5 players (never fewer seats than players already here); `map` fits the new count */
   setSize(n, map) {
     const L = this.lobby;
     if (!this.isHost || n < 2 || n > SEATS) return false;

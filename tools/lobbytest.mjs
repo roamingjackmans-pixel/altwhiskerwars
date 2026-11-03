@@ -1,12 +1,12 @@
 // In-memory test of the lobby/session protocol (no network): node tools/lobbytest.mjs
-// A host and up to three guests on a fake hub that behaves like the relay: guests are numbered by slot,
+// A host and up to four guests on a fake hub that behaves like the relay: guests are numbered by slot,
 // the host can message one guest or all of them.
 import { OnlineSession } from '../public/js/online.js';
 
 class Hub {
   constructor() { this.guests = new Map(); }
   hostEnd() { const h = this.host = new End(this, 0); return h; }
-  guestEnd(pid) { const slot = [1, 2, 3].find(s => !this.guests.has(s)); const g = new End(this, slot, pid || 'player-' + (++Hub.n)); this.guests.set(slot, g); setTimeout(() => this.host.emit('peer-join', slot), 0); return g; }
+  guestEnd(pid) { const slot = [1, 2, 3, 4].find(s => !this.guests.has(s)); const g = new End(this, slot, pid || 'player-' + (++Hub.n)); this.guests.set(slot, g); setTimeout(() => this.host.emit('peer-join', slot), 0); return g; }
 }
 Hub.n = 0;
 class End {
@@ -45,12 +45,17 @@ const g4 = new OnlineSession(hub.guestEnd(), false, '12345');
 await wait(30);
 check('later guests take seats 2 and 3', g3.me === 2 && g4.me === 3);
 check('lobby cannot shrink below the players here', host.setSize(3) === false);
+check('host can grow the lobby to 5', host.setSize(5, 'pentaplaza'));
+const g5 = new OnlineSession(hub.guestEnd(), false, '12345');
+await wait(30);
+check('a fifth player takes seat 4', g5.me === 4 && host.lobby.players[4] && g5.lobby.size === 5);
+check('lobby cannot shrink below 5 with five here', host.setSize(4) === false);
 
 g1.setPick({ hero: 'shadow' }); g3.setPick({ hero: 'luna' }); await wait(20);
 check('picks land in the right seats', host.lobby.players[1].hero === 'shadow' && host.lobby.players[2].hero === 'luna');
 check('cannot start before everyone is ready', !host.canStart());
-g1.setReady(true); g3.setReady(true); g4.setReady(true); await wait(20);
-check('can start when all three are ready', host.canStart());
+g1.setReady(true); g3.setReady(true); g4.setReady(true); g5.setReady(true); await wait(20);
+check('can start when all four guests are ready', host.canStart());
 
 let started = 0; for (const g of [g1, g3, g4]) g.on('start', () => started++);
 host.markMatch(); host.send({ type: 'start', info: { x: 1 }, snap: { t: 0 } }); await wait(20);
@@ -77,5 +82,5 @@ check('lobby emotes are passed on to the other guests', emotes === 1);
 let rr = 0; for (const s of [host, g1, g4]) s.on('rematch-request', () => rr++);
 g1.toLobby(); await wait(20);
 check('a rematch request reaches everyone', rr >= 3 && host.lobby.phase === 'lobby');
-for (const s of [host, g1, g2, g3, g4, back]) s.close();
+for (const s of [host, g1, g2, g3, g4, g5, back]) s.close();
 console.log(process.exitCode ? '\nlobby test FAILED' : '\nlobby test OK');

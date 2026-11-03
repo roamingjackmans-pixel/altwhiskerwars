@@ -41,7 +41,10 @@ export const TEAM_COLORS = [
   { id: 1, name: 'Red',   main: '#ff5468', dark: '#b8243a', light: '#ffc0c8', glow: 'rgba(255,84,104,0.55)' },
   { id: 2, name: 'Green', main: '#3fd47a', dark: '#1f8a4c', light: '#bff5d4', glow: 'rgba(63,212,122,0.55)' },
   { id: 3, name: 'Gold',  main: '#ffc23d', dark: '#b8851d', light: '#ffe9b5', glow: 'rgba(255,194,61,0.55)' },
+  { id: 4, name: 'Purple', main: '#b46cff', dark: '#7434c2', light: '#e4cbff', glow: 'rgba(180,108,255,0.55)' },
 ];
+/** most players in one battle */
+export const MAX_PLAYERS = TEAM_COLORS.length;
 export const NEUTRAL_COLOR = { id: -1, name: 'Stray', main: '#cfc6ba', dark: '#8e857a', light: '#f2ede6', glow: 'rgba(220,210,200,0.4)' };
 export function teamColor(owner) { return owner >= 0 ? TEAM_COLORS[owner] : NEUTRAL_COLOR; }
 
@@ -705,9 +708,28 @@ function rot3(share, cx, cy) {
   }
   return finish(out);
 }
-function turn([x, y], cx, cy, k) {
-  const a = k * 2 * Math.PI / 3, c = Math.cos(a), s = Math.sin(a), dx = x - cx, dy = y - cy;
+function turn([x, y], cx, cy, k, n = 3) {
+  const a = k * 2 * Math.PI / n, c = Math.cos(a), s = Math.sin(a), dx = x - cx, dy = y - cy;
   return [Math.round((cx + dx * c - dy * s) * 10) / 10, Math.round((cy + dx * s + dy * c) * 10) / 10];
+}
+// 5 players: list one base's share; rot5 turns it to the other four bases around the centre (cx, cy), 72° apart
+// (center:true pieces sit on the centre and appear once). Seats go clockwise.
+function rot5(share, cx, cy) {
+  const out = [];
+  for (let k = 0; k < 5; k++) for (const b of share) {
+    if (b.center && k) continue;
+    const [x, y] = turn([b.x, b.y], cx, cy, k, 5);
+    out.push({ ...b, x, y, owner: b.owner === 0 ? k : -1 });
+  }
+  return finish(out);
+}
+function terrain5(share, cx, cy) {
+  const out = [];
+  for (let k = 0; k < 5; k++) for (const o of share) {
+    if (o.center && k) continue;
+    out.push(moveShape(o, p => turn(p, cx, cy, k, 5), a => a + k * 2 * Math.PI / 5));
+  }
+  return out;
 }
 // terrain counterparts: same copies for ponds, rivers, hedges and lumps (duplicates on the middle lines dropped)
 function shapeKey(o) {
@@ -763,6 +785,11 @@ function terrain3(share, cx, cy) {
   }
   return out;
 }
+// the map builders, for tools that try out a map before it goes in MAPS (tools/mapcheck.mjs)
+export const MAP_KIT = {
+  finish, mirror, mirror4, rot3, rot5, pair3, terrain, terrain3, terrain4, terrain5, terrainPair,
+  pond, sea, river, island, bridge, mound, rock, gumdrop, ridge, hedge, wall, C, turn,
+};
 
 export const MAPS = [
   {
@@ -1391,7 +1418,485 @@ MAPS.push(
     ]),
   },
 );
-// map pickers list 2-player maps, then 3, then 4; each theme's classic open map first, then its terrain maps
+// ---- 5 player maps turned five ways around the middle (every seat gets the same roads; the corners stay empty)
+const P5 = [800, 455];
+const at5 = (r, deg) => ({ x: Math.round(P5[0] + r * Math.cos(deg * Math.PI / 180)), y: Math.round(P5[1] + r * Math.sin(deg * Math.PI / 180)) });
+const pt5 = (r, deg) => { const p = at5(r, deg); return [p.x, p.y]; };
+const arc5 = (r, d0, d1, n = 4) => Array.from({ length: n + 1 }, (_, k) => pt5(r, d0 + (d1 - d0) * k / n));
+MAPS.push(
+  {
+    id: 'pentaplaza', rot5: P5, name: 'Pentagon Plaza', theme: 'meadow', size: 'Large', players: 5,
+    desc: 'Five clowders around one Cat Tree. Both neighbours are the same short walk away.',
+    buildings: rot5([
+      { ...at5(360, -90), type: 'cottage', level: 2, owner: 0, count: 20 },
+      { ...at5(245, -110), type: 'cottage', count: 8 },
+      { ...at5(245, -70), type: 'cottage', count: 8 },
+      { ...at5(150, -90), type: 'tower', count: 12 },
+      { ...at5(345, -54), type: 'cottage', count: 12 },
+      { x: P5[0], y: P5[1], type: 'cattree', count: 50, center: true },
+    ], ...P5),
+  },
+  {
+    id: 'pentastar', rot5: P5, name: 'Sugar Star', theme: 'candy', size: 'Large', players: 5,
+    desc: 'A five-point star of sweets. Towers guard the borders and a big cottage waits in the middle.',
+    buildings: rot5([
+      { ...at5(370, -90), type: 'cottage', level: 2, owner: 0, count: 20 },
+      { ...at5(280, -108), type: 'cottage', count: 7 },
+      { ...at5(280, -72), type: 'cottage', count: 7 },
+      { ...at5(195, -90), type: 'forge', count: 12 },
+      { ...at5(350, -54), type: 'tower', count: 14 },
+      { ...at5(150, -54), type: 'garden', count: 12 },
+      { x: P5[0], y: P5[1], type: 'cottage', level: 3, count: 30, center: true },
+    ], ...P5),
+  },
+  {
+    id: 'pentalagoon', rot5: P5, name: 'Five-Dock Lagoon', theme: 'beach', size: 'Large', players: 5,
+    desc: 'The Cat Tree sits on an island in the lagoon. Every dock gets one bridge to it.',
+    buildings: rot5([
+      { ...at5(370, -90), type: 'cottage', level: 2, owner: 0, count: 20 },
+      { ...at5(290, -112), type: 'cottage', count: 8 },
+      { ...at5(290, -68), type: 'cottage', count: 8 },
+      { ...at5(225, -90), type: 'forge', count: 12 },
+      { x: P5[0], y: P5[1], type: 'cattree', count: 45, center: true },
+    ], ...P5),
+    obstacles: terrain5([
+      C(pond(P5[0], P5[1], 165)),
+      C(island(P5[0], P5[1], 92)),
+      { t: 'bridge', pts: [pt5(78, -90), pt5(200, -90)], w: 80 },
+    ], ...P5),
+  },
+  {
+    id: 'pentaridge', rot5: P5, name: 'Five Ridges', theme: 'snow', size: 'Large', players: 5,
+    desc: 'Snow ridges wall off every pair of neighbours. Squeeze past the Cat Tree or go the long way round.',
+    buildings: rot5([
+      { ...at5(370, -90), type: 'cottage', level: 2, owner: 0, count: 20 },
+      { ...at5(290, -105), type: 'cottage', count: 8 },
+      { ...at5(290, -75), type: 'cottage', count: 8 },
+      { ...at5(190, -90), type: 'cottage', level: 2, count: 16 },
+      { x: P5[0], y: P5[1], type: 'cattree', count: 45, center: true },
+    ], ...P5),
+    obstacles: terrain5([
+      ridge([pt5(170, -54), pt5(320, -54)], 56),
+    ], ...P5),
+  },
+  {
+    id: 'pentaroofs', rot5: P5, name: 'Rooftop Pentagon', theme: 'rooftop', size: 'Large', players: 5,
+    desc: 'A brick ring guards the Cat Tree. Its gates open between neighbours, never in front of you.',
+    buildings: rot5([
+      { ...at5(370, -90), type: 'cottage', level: 2, owner: 0, count: 20 },
+      { ...at5(285, -105), type: 'cottage', count: 8 },
+      { ...at5(285, -75), type: 'cottage', count: 8 },
+      { ...at5(360, -54), type: 'forge', count: 13 },
+      { ...at5(130, -54), type: 'tower', count: 12 },
+      { x: P5[0], y: P5[1], type: 'cattree', count: 45, center: true },
+    ], ...P5),
+    obstacles: terrain5([
+      wall(arc5(210, -106, -74), 44),
+    ], ...P5),
+  },
+);
+// ---- 4 and 5 player maps balanced by hand (hand: true): not mirrored or turned, so every seat stands on different
+// ground. They were kept fair with AI-vs-AI games where every seat has the same hero and AI level (tools/mapcheck.mjs).
+MAPS.push(
+  {
+    id: 'quadglacier', name: 'Lonely Glacier', theme: 'snow', size: 'Large', players: 4, hand: true,
+    desc: 'A crevasse cuts one lonely clan off on the glacier. Two ice bridges lead over to three crowded neighbours.',
+    buildings: finish([
+      // bases
+      { x: 170, y: 160, type: 'cottage', level: 2, owner: 0, count: 20 },   // NW
+      { x: 1440, y: 140, type: 'cottage', level: 2, owner: 1, count: 20 },  // NE, alone on the glacier
+      { x: 1420, y: 750, type: 'cottage', level: 2, owner: 2, count: 20 },  // SE
+      { x: 180, y: 740, type: 'cottage', level: 2, owner: 3, count: 20 },   // SW
+      // NW
+      { x: 410, y: 110, type: 'cottage', count: 10 },
+      { x: 160, y: 380, type: 'cottage', count: 9 },
+      { x: 400, y: 330, type: 'cottage', count: 11 },
+      { x: 720, y: 120, type: 'forge', count: 14 },
+      // SW
+      { x: 420, y: 800, type: 'cottage', count: 9 },
+      { x: 170, y: 560, type: 'cottage', count: 10 },
+      { x: 420, y: 580, type: 'cottage', count: 12 },
+      { x: 650, y: 720, type: 'garden', count: 15 },
+      // SE
+      { x: 1180, y: 810, type: 'cottage', count: 9 },
+      { x: 1450, y: 560, type: 'cottage', count: 10 },
+      { x: 1170, y: 620, type: 'cottage', count: 11 },
+      { x: 940, y: 770, type: 'tower', count: 14 },
+      // NE glacier
+      { x: 1240, y: 100, type: 'cottage', count: 9 },
+      { x: 1220, y: 260, type: 'garden', count: 12 },
+      { x: 1500, y: 330, type: 'cottage', count: 10 },
+      { x: 1350, y: 320, type: 'cottage', count: 13 },
+      // middle
+      { x: 800, y: 470, type: 'cattree', count: 48 },
+      { x: 600, y: 440, type: 'tower', count: 14 },
+      { x: 960, y: 320, type: 'cottage', level: 2, count: 18 },
+      { x: 800, y: 830, type: 'cottage', count: 12 },
+    ]),
+    obstacles: [
+      river([[1050, -60], [1040, 90], [1100, 230], [1080, 330], [1190, 420], [1330, 470], [1480, 450], [1660, 500]], 80),
+      bridge(995, 175, 1160, 175, 76),
+      bridge(1280, 370, 1280, 530, 76),
+      ridge([[40, 470], [300, 470]], 56),
+      pond(800, 640, 70, 40),
+      rock(560, 230, 30),
+      mound(1000, 560, 50, 40),
+      ridge([[700, 300], [860, 250]], 50),
+      rock(1050, 690, 34),
+    ],
+  },
+  {
+    id: 'quadalley', name: 'Alleycat Blocks', theme: 'rooftop', size: 'Large', players: 4, hand: true,
+    desc: 'Alleys carve the rooftops into odd blocks: a long ledge, a corner, a big square and one roof in the thick of it.',
+    buildings: finish([
+      // seat 0: the long thin roof along the top, and the west ledge below its plank
+      { x: 470, y: 110, type: 'cottage', level: 2, owner: 0, count: 20 },
+      { x: 160, y: 100, type: 'cottage', count: 8 },
+      { x: 310, y: 150, type: 'tower', count: 8 },
+      { x: 690, y: 70, type: 'cottage', count: 10 },
+      { x: 880, y: 140, type: 'cottage', count: 12 },
+      { x: 170, y: 450, type: 'cottage', count: 11 },
+      // seat 1: the corner roof, top right
+      { x: 1460, y: 130, type: 'cottage', level: 2, owner: 1, count: 20 },
+      { x: 1270, y: 90, type: 'cottage', count: 8 },
+      { x: 1540, y: 240, type: 'cottage', count: 9 },
+      { x: 1300, y: 240, type: 'garden', count: 8 },
+      { x: 1430, y: 460, type: 'cottage', level: 2, count: 16 },
+      // seat 2: the wide square roof, bottom right
+      { x: 1300, y: 760, type: 'cottage', level: 2, owner: 2, count: 20 },
+      { x: 1050, y: 830, type: 'cottage', count: 9 },
+      { x: 1510, y: 670, type: 'cottage', count: 8 },
+      { x: 1510, y: 840, type: 'garden', count: 10 },
+      { x: 1090, y: 690, type: 'garden', count: 13 },
+      // seat 3: the roof near the middle
+      { x: 560, y: 530, type: 'cottage', level: 2, owner: 3, count: 20 },
+      { x: 420, y: 390, type: 'cottage', count: 12 },
+      { x: 450, y: 770, type: 'cottage', count: 11 },
+      { x: 700, y: 800, type: 'cottage', count: 12 },
+      { x: 150, y: 800, type: 'garden', count: 9 },
+      // contested middle
+      { x: 980, y: 420, type: 'cattree', count: 45 },
+      { x: 990, y: 230, type: 'forge', count: 14 },
+      { x: 1250, y: 450, type: 'tower', count: 13 },
+    ]),
+    obstacles: [
+      // alley under the long roof, a plank at the west end and a brick wall fencing the west ledge
+      river([[-60, 245], [790, 245]], 84),
+      bridge(240, 180, 240, 310, 80),
+      wall([[340, 320], [340, 760]], 44),
+      // L-shaped alley round the corner roof, a plank on each side
+      river([[1130, -60], [1130, 340], [1660, 340]], 84),
+      bridge(1060, 110, 1200, 110, 80),
+      bridge(1500, 270, 1500, 410, 80),
+      // the big square: an alley on its west side and a brick wall with one gate along its top
+      river([[880, 960], [880, 620]], 84),
+      wall([[880, 580], [1160, 580]], 44),
+      wall([[1280, 580], [1660, 580]], 44),
+      // brick wall shielding the middle roof from the east
+      wall([[770, 420], [800, 480], [800, 720]], 44),
+    ],
+  },
+  {
+    id: 'quadcandy', name: 'Fudge Fork', theme: 'candy', size: 'Large', players: 4, hand: true,
+    desc: 'A fudge river forks round a Cat Tree island. Two clans share the north bank; the south is split in two.',
+    buildings: finish([
+      // seat 0: north-west corner
+      { x: 190, y: 160, type: 'cottage', level: 2, owner: 0, count: 20 },
+      { x: 420, y: 100, type: 'cottage', count: 9 },
+      { x: 110, y: 330, type: 'cottage', count: 9 },
+      { x: 400, y: 300, type: 'garden', count: 10 },
+      // seat 1: north-east, big back yard
+      { x: 1180, y: 150, type: 'cottage', level: 2, owner: 1, count: 20 },
+      { x: 1400, y: 90, type: 'cottage', count: 9 },
+      { x: 1380, y: 300, type: 'cottage', count: 9 },
+      { x: 1500, y: 200, type: 'garden', count: 10 },
+      // seat 2: south-west pocket
+      { x: 190, y: 730, type: 'cottage', level: 2, owner: 2, count: 20 },
+      { x: 420, y: 790, type: 'cottage', count: 9 },
+      { x: 110, y: 560, type: 'cottage', count: 9 },
+      { x: 400, y: 590, type: 'garden', count: 10 },
+      // seat 3: south-east, wide open
+      { x: 1180, y: 690, type: 'cottage', level: 2, owner: 3, count: 20 },
+      { x: 1400, y: 750, type: 'cottage', count: 9 },
+      { x: 1380, y: 540, type: 'cottage', count: 9 },
+      { x: 1500, y: 640, type: 'garden', count: 10 },
+      // the Cat Tree island (C and D by their bridges, A and B by the north bridge)
+      { x: 685, y: 575, type: 'cattree', count: 45 },
+      // north bank middle, shared by A and B (gumdrops push the road between them up to the top edge)
+      { x: 680, y: 110, type: 'forge', count: 15 },
+      { x: 650, y: 320, type: 'cottage', level: 3, count: 22 },
+      // B's extras on the wide east side
+      { x: 940, y: 110, type: 'cottage', count: 12 },
+      // towers watching the south crossings: C's over the stem bridge and island, D's over the island exit
+      { x: 520, y: 740, type: 'tower', count: 14 },
+      { x: 900, y: 730, type: 'tower', count: 14 },
+      // D's extra on the wide south-east
+      { x: 1000, y: 840, type: 'cottage', count: 12 },
+      // B's garden at the east bridge
+      { x: 1060, y: 270, type: 'garden', count: 12 },
+    ]),
+    obstacles: [
+      river([[-60, 440], [200, 450], [420, 440], [640, 450], [860, 430], [1080, 410], [1300, 420], [1660, 410]], 88),
+      pond(685, 560, 165, 125),
+      river([[685, 650], [640, 780], [670, 960]], 88),
+      island(685, 575, 100, 75),
+      bridge(600, 585, 500, 605, 76),
+      bridge(770, 585, 870, 605, 76),
+      bridge(705, 510, 725, 380, 76),
+      bridge(300, 385, 300, 505, 80),
+      bridge(585, 800, 715, 800, 80),
+      bridge(1040, 355, 1040, 475, 80),
+      gumdrop(520, 200, 46),
+      gumdrop(860, 220, 44),
+    ],
+  },
+  {
+    id: 'pentahedge', name: 'Lantern Labyrinth', theme: 'night', size: 'Large', players: 5, hand: true,
+    desc: 'Moonlit hedge rows wall in the Cat Tree. Two clans hide in leafy nooks, three roam the open lawns.',
+    buildings: finish([
+      { x: 180, y: 250, type: 'cottage', level: 2, owner: 0, count: 20 },   // P: west lawn
+      { x: 800, y: 100, type: 'cottage', level: 2, owner: 1, count: 20 },   // Q: north nook
+      { x: 1420, y: 280, type: 'cottage', level: 2, owner: 2, count: 20 },  // R: east lawn
+      { x: 1170, y: 800, type: 'cottage', level: 2, owner: 3, count: 20 },  // S: south-east nook
+      { x: 460, y: 800, type: 'cottage', level: 2, owner: 4, count: 20 },   // T: south-west lawn
+      // P
+      { x: 130, y: 90, type: 'cottage', count: 10 },
+      { x: 380, y: 120, type: 'cottage', count: 11 },
+      { x: 110, y: 440, type: 'cottage', count: 11 },
+      { x: 410, y: 310, type: 'garden', count: 10 },
+      // Q
+      { x: 620, y: 100, type: 'cottage', count: 8 },
+      { x: 980, y: 100, type: 'cottage', count: 8 },
+      { x: 700, y: 190, type: 'cottage', level: 2, count: 12 },
+      { x: 890, y: 190, type: 'garden', count: 10 },
+      // R
+      { x: 1470, y: 100, type: 'cottage', count: 9 },
+      { x: 1230, y: 150, type: 'cottage', count: 10 },
+      { x: 1490, y: 470, type: 'cottage', count: 10 },
+      { x: 1210, y: 340, type: 'garden', count: 10 },
+      // S
+      { x: 1480, y: 800, type: 'cottage', count: 8 },
+      { x: 1030, y: 690, type: 'cottage', count: 8 },
+      { x: 1320, y: 670, type: 'cottage', count: 8 },
+      { x: 1150, y: 640, type: 'garden', count: 9 },
+      // T
+      { x: 170, y: 800, type: 'cottage', count: 8 },
+      { x: 560, y: 690, type: 'cottage', count: 9 },
+      { x: 320, y: 640, type: 'cottage', count: 10 },
+      { x: 210, y: 680, type: 'garden', count: 10 },
+      // the Cat Tree, and the gaps between the gardens
+      { x: 790, y: 420, type: 'cattree', count: 45 },
+      { x: 815, y: 835, type: 'forge', count: 14 },    // bottom gap, S and T
+      { x: 90, y: 610, type: 'tower', count: 12 },     // left gap, P and T
+      { x: 1500, y: 670, type: 'tower', count: 12 },   // right gap, R and S
+    ]),
+    obstacles: [
+      // hedge rows from the ring out between the gardens
+      hedge([[684, 294], [580, 190]]),                          // P | Q
+      hedge([[896, 294], [1030, 190]]),                         // Q | R
+      hedge([[949, 463], [1150, 540], [1360, 570]]),            // R | S
+      hedge([[804, 584], [830, 730]]),                          // S | T
+      hedge([[815, 640], [490, 605]]),                          // screens T's gate from T's lawn
+      hedge([[631, 463], [420, 500], [250, 520]]),              // T | P
+      // ring round the Cat Tree: shut to the north (Q) and south-east (S)
+      hedge([[655, 515], [640, 490], [631, 463], [626, 434]]),
+      hedge([[664, 314], [684, 294], [707, 277], [734, 265], [761, 258], [790, 255], [819, 258], [846, 265], [873, 277], [896, 294], [916, 314]]),
+      hedge([[954, 434], [949, 463], [940, 490], [925, 515], [907, 537], [885, 555], [860, 570], [833, 579], [804, 584], [776, 584], [761, 582]]),
+      // a lily pond tucked in the south-east nook
+      pond(910, 615, 52, 32, -0.35),
+    ],
+  },
+  {
+    id: 'pentaisles', name: 'Starfish Lagoon', theme: 'beach', size: 'Large', players: 5, hand: true,
+    desc: 'Five docks ring a starfish lagoon. Three bridges reach the Cat Tree, and every channel is a chokepoint.',
+    buildings: finish([
+      // seat 0: the big west isle, three ways in (north bridge, south bridge, lagoon bridge to the Cat Tree)
+      { x: 240, y: 590, type: 'cottage', level: 2, owner: 0, count: 20 },
+      { x: 170, y: 320, type: 'cottage', count: 6 },
+      { x: 310, y: 390, type: 'cottage', count: 8 },
+      { x: 130, y: 770, type: 'cottage', count: 6 },
+      { x: 380, y: 700, type: 'tower', count: 8 },
+      { x: 100, y: 470, type: 'garden', count: 8 },
+      { x: 280, y: 250, type: 'tower', count: 8 },
+      // seat 1: the small north rock, two bridges and a private garden islet
+      { x: 610, y: 110, type: 'cottage', level: 2, owner: 1, count: 20 },
+      { x: 480, y: 80, type: 'cottage', count: 14 },
+      { x: 740, y: 70, type: 'cottage', count: 14 },
+      { x: 700, y: 195, type: 'cottage', count: 14 },
+      // seat 2: the north-east shore, two bridges and a lagoon bridge to the Cat Tree
+      { x: 1250, y: 150, type: 'cottage', level: 2, owner: 2, count: 20 },
+      { x: 1030, y: 110, type: 'cottage', count: 12 },
+      { x: 1480, y: 110, type: 'cottage', count: 13 },
+      { x: 1170, y: 285, type: 'cottage', count: 14 },
+      { x: 1520, y: 250, type: 'tower', count: 15 },
+      // seat 3: the south-east shore, two bridges, a tower on the north bridgehead
+      { x: 1400, y: 700, type: 'cottage', level: 2, owner: 3, count: 20 },
+      { x: 1250, y: 560, type: 'cottage', count: 13 },
+      { x: 1520, y: 560, type: 'cottage', count: 14 },
+      { x: 1500, y: 830, type: 'forge', count: 12 },
+      { x: 1290, y: 840, type: 'cottage', count: 13 },
+      { x: 1390, y: 565, type: 'tower', count: 10 },
+      // seat 4: the south pier, two bridges and a forge islet that leads on to the Cat Tree
+      { x: 800, y: 800, type: 'cottage', level: 2, owner: 4, count: 20 },
+      { x: 660, y: 770, type: 'cottage', count: 10 },
+      { x: 940, y: 790, type: 'cottage', count: 11 },
+      { x: 870, y: 685, type: 'garden', count: 12 },
+      // the lagoon: Cat Tree island (bridges from seat 0, seat 2 and seat 4's forge islet), seat 1's private garden islet
+      { x: 810, y: 440, type: 'cattree', count: 45 },
+      { x: 980, y: 530, type: 'forge', count: 16 },
+      { x: 620, y: 350, type: 'garden', count: 16 },
+    ]),
+    obstacles: [
+      pond(800, 440, 330, 195),
+      river([[520, 330], [200, -60]], 100),
+      river([[820, 270], [860, -60]], 100),
+      river([[1110, 400], [1660, 360]], 100),
+      river([[1060, 600], [1180, 960]], 100),
+      river([[560, 600], [420, 960]], 100),
+      island(795, 440, 115, 92),
+      island(980, 530, 62, 56),
+      island(620, 350, 62, 56),
+      bridge(357, 297, 519, 163, 92),
+      bridge(731, 137, 939, 163, 92),
+      bridge(1440, 272, 1440, 488, 92),
+      bridge(1027, 830, 1227, 764, 92),
+      bridge(392, 742, 588, 818, 92),
+      bridge(420, 455, 715, 445, 92),
+      bridge(1090, 255, 870, 400, 92),
+      bridge(630, 220, 622, 340, 92),
+      bridge(978, 690, 980, 540, 92),
+      bridge(950, 515, 840, 480, 92),
+      rock(1340, 290, 30),
+      rock(80, 170, 30),
+      rock(300, 850, 28),
+    ],
+  },
+  {
+    id: 'pentavalley', name: 'Millbrook Valley', theme: 'meadow', size: 'Large', players: 5, hand: true,
+    desc: 'A brook winds through the Cat Tree pond. Two knolls hide behind dirt mounds; the south bank has no walls.',
+    buildings: finish([
+      // seats
+      { x: 800, y: 100, type: 'cottage', level: 2, owner: 0, count: 20 },   // P mill bank: open, nearest the Cat Tree
+      { x: 1400, y: 310, type: 'cottage', level: 2, owner: 1, count: 20 },  // Q east knoll: walled meadow, ford below
+      { x: 1150, y: 790, type: 'cottage', level: 2, owner: 2, count: 20 },  // R south meadow: open, faces the east ford
+      { x: 530, y: 790, type: 'cottage', level: 2, owner: 3, count: 20 },   // S fen: open, faces the west ford
+      { x: 270, y: 330, type: 'cottage', level: 2, owner: 4, count: 20 },   // T west knoll: one gap, a ford at its back
+      // P strays
+      { x: 600, y: 90, type: 'cottage', count: 9 },
+      { x: 1010, y: 90, type: 'cottage', count: 9 },
+      { x: 800, y: 270, type: 'cottage', count: 13 },
+      // Q strays
+      { x: 1510, y: 110, type: 'cottage', count: 8 },
+      { x: 1270, y: 140, type: 'garden', count: 10 },
+      { x: 1260, y: 380, type: 'cottage', count: 11 },
+      { x: 1510, y: 430, type: 'cottage', count: 11 },
+      // R strays
+      { x: 1420, y: 830, type: 'cottage', count: 8 },
+      { x: 1310, y: 740, type: 'cottage', count: 9 },
+      { x: 980, y: 830, type: 'cottage', count: 10 },
+      { x: 1010, y: 640, type: 'forge', count: 14 },
+      // S strays
+      { x: 170, y: 830, type: 'cottage', count: 9 },
+      { x: 340, y: 840, type: 'cottage', count: 9 },
+      { x: 690, y: 830, type: 'cottage', count: 10 },
+      { x: 620, y: 650, type: 'garden', count: 12 },
+      // T strays (on the knoll)
+      { x: 100, y: 100, type: 'cottage', count: 11 },
+      { x: 100, y: 330, type: 'cottage', count: 12 },
+      { x: 330, y: 110, type: 'garden', count: 10 },
+      { x: 200, y: 200, type: 'cottage', count: 11 },
+      // contested: the Cat Tree (P, R and S reach it together), the forge at T's gap, the tower at Q's gap
+      // and a big cottage on the mill bank under Q's ridge (the crowded north bank gets the extra cottage)
+      { x: 845, y: 510, type: 'cattree', count: 45 },
+      { x: 590, y: 380, type: 'forge', count: 14 },
+      { x: 1090, y: 310, type: 'tower', count: 14 },
+      { x: 1000, y: 240, type: 'cottage', level: 2, count: 24 },
+    ]),
+    obstacles: [
+      // the brook: in from the west edge, through the Cat Tree's mill pond, out the east edge
+      river([[-60, 640], [130, 630], [260, 580], [420, 590], [560, 550], [700, 520]], 86),
+      pond(845, 510, 185, 110),
+      island(845, 510, 105, 70),
+      river([[990, 480], [1080, 440], [1200, 500], [1330, 560], [1480, 530], [1660, 540]], 86),
+      bridge(845, 450, 845, 375, 80),     // island to the north bank
+      bridge(785, 562, 760, 650, 76),     // island to the south-west bank
+      bridge(895, 560, 970, 640, 76),     // island to the south-east bank
+      bridge(250, 510, 250, 680, 86),     // west ford (T - S)
+      bridge(1400, 470, 1400, 630, 86),   // east ford (Q - R)
+      // west knoll (seat T): a mound ridge from the top edge down to the brook, one gap toward P
+      ridge([[470, -30], [480, 180], [455, 290]], 56),
+      ridge([[445, 420], [440, 500], [430, 600]], 56),
+      // east knoll (seat Q): a ridge walls its meadow off from the north road; the way in passes the tower
+      ridge([[1170, -30], [1170, 120], [1200, 230]], 56),
+      // dirt mounds, the reedy fen and the duck pond
+      mound(380, 210, 34),
+      mound(1535, 260, 38),
+      hedge([[330, 650], [460, 662]], 36),
+      pond(1530, 690, 50, 34),
+    ],
+  },
+  {
+    id: 'pentapeaks', name: 'Five Peak Pass', theme: 'snow', size: 'Large', players: 5, hand: true,
+    desc: 'Five clans, five valleys, one snowy range. The plateau has a single pass; the Cat Tree waits in the south.',
+    buildings: finish([
+      // seat 0: the high plateau, top centre, one pass south
+      { x: 820, y: 120, type: 'cottage', level: 2, owner: 0, count: 20 },
+      { x: 650, y: 90, type: 'cottage', count: 8 },
+      { x: 720, y: 195, type: 'garden', count: 12 },
+      { x: 980, y: 100, type: 'cottage', count: 8 },
+      // seat 1: east, on the shore of the frozen lake
+      { x: 1440, y: 200, type: 'cottage', level: 2, owner: 1, count: 20 },
+      { x: 1250, y: 100, type: 'cottage', count: 9 },
+      { x: 1470, y: 380, type: 'cottage', count: 10 },
+      { x: 1250, y: 290, type: 'cottage', count: 13 },
+      { x: 1510, y: 70, type: 'garden', count: 15 },
+      // seat 2: south-east rock field
+      { x: 1200, y: 810, type: 'cottage', level: 2, owner: 2, count: 20 },
+      { x: 1470, y: 810, type: 'cottage', count: 9 },
+      { x: 1480, y: 630, type: 'cottage', count: 10 },
+      { x: 1090, y: 690, type: 'cottage', count: 10 },
+      // seat 3: south-west foothills, facing the Cat Tree basin
+      { x: 460, y: 800, type: 'cottage', level: 2, owner: 3, count: 20 },
+      { x: 200, y: 820, type: 'cottage', count: 9 },
+      { x: 250, y: 690, type: 'cottage', count: 10 },
+      { x: 620, y: 690, type: 'garden', count: 12 },
+      // seat 4: west, the wide open valley
+      { x: 180, y: 210, type: 'cottage', level: 2, owner: 4, count: 20 },
+      { x: 410, y: 110, type: 'cottage', count: 9 },
+      { x: 150, y: 470, type: 'cottage', count: 13 },
+      { x: 400, y: 330, type: 'cottage', count: 13 },
+      { x: 110, y: 90, type: 'garden', count: 18 },
+      // the corridor under the plateau
+      { x: 820, y: 410, type: 'forge', count: 16 },
+      { x: 620, y: 395, type: 'cottage', count: 12 },
+      { x: 1070, y: 398, type: 'cottage', count: 12 },
+      // the south basin
+      { x: 825, y: 760, type: 'cattree', count: 45 },
+      { x: 670, y: 840, type: 'cottage', count: 9 },
+      { x: 1030, y: 840, type: 'tower', count: 12 },
+    ]),
+    obstacles: [
+      // plateau walls, gap = the single pass
+      ridge([[560, -40], [565, 190], [720, 290]], 56),
+      ridge([[920, 290], [1090, 200], [1100, -40]], 56),
+      // the central range
+      ridge([[240, 575], [300, 560], [480, 540], [640, 520], [820, 545], [1000, 520], [1180, 540]], 70),
+      mound(410, 560, 85, 45),
+      mound(650, 540, 110, 55),
+      mound(820, 548, 80, 45),
+      mound(1000, 535, 120, 55),
+      mound(1160, 550, 70, 42),
+      // frozen lake between east and south-east
+      pond(1290, 520, 170, 75, -0.3),
+      // rocks in the south-east
+      rock(1360, 700, 34),
+      rock(1320, 880, 30),
+      rock(960, 660, 26),
+      rock(1330, 775, 22),
+    ],
+  },
+);
+// map pickers list 2-player maps, then 3, 4 and 5; each theme's classic open map first, then its terrain maps
 { const order = Object.keys(THEMES); MAPS.sort((a, b) => ((a.players || 2) - (b.players || 2)) || (order.indexOf(a.theme) - order.indexOf(b.theme))); }
 export const MAP_BY_ID = Object.fromEntries(MAPS.map(m => [m.id, m]));
 
