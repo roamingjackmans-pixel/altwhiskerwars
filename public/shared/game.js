@@ -968,7 +968,7 @@ export class Game {
       }
       case 'gohome': { let n = 0; for (const s of this.squadsIn(x, y, sp.r)) if (this.turnHome(s)) n++; return n; }
       case 'panic': this.pending.push({ at: t + sp.delay, k: 'panic', o: i, b: b.id, owner: b.owner, pct: sp.pct }); this.setFx(b, 'shackle', t + sp.delay); return;
-      // ================================================================ Cackle
+      // ================================================================ Miss Maisu
       case 'skeletons': {
         if (b.type === 'cottage' && b.level >= 5) { this.err(i, 'Not on a level 5 cottage'); return false; }
         const pt = this.besidePoint(i, b, 55);

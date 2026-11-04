@@ -430,7 +430,7 @@ export const HEROES = H([
     ],
   },
   {
-    id: 'cackle', name: 'Cackle', title: 'The Cauldron Witch', clan: 'alley', cost: 16500, fur: 'siamese', role: 'Attack · Hard',
+    id: 'cackle', name: 'Miss Maisu', title: 'The Bird Chirper', clan: 'alley', cost: 16500, fur: 'siamese', role: 'Attack · Hard',
     blurb: 'Raises skeletons, borrows other heroes\' tricks and drops cauldrons on things. Usually laughing.',
     spells: [
       { id: 'steal', name: 'Copy Cat', icon: '🎒', target: 'global', fx: 'steal',
