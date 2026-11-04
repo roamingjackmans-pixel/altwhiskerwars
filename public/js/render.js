@@ -396,7 +396,7 @@ export class Renderer {
     const tag = (ch, dx, dy = 0) => { ctx.font = FONT(400, 14); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ch, s.x + dx, s.y - r - 12 + dy); };
     if (has(s.fx, 's_slug')) { tag('🐛', 12, Math.sin(t * 4 + s.id) * 2); if (this.fxLevel !== 'low' && Math.random() < 0.15) this.spawn({ x: s.x + rand(-r, r) * 0.6, y: s.y + 2, vx: 0, vy: 0, life: 0.9, size: 3, color: 'rgba(140,220,90,0.8)', kind: 'dot' }); }
     if (has(s.fx, 's_arms')) tag('🗡️', -12);
-    if (has(s.fx, 's_bones')) tag('💀', 10);
+    if (has(s.fx, 's_bones')) tag('🐦', 10, Math.sin(t * 6 + s.id) * 2);
     if (has(s.fx, 's_ghost')) tag('👻', 12, Math.sin(t * 3 + s.id) * 3);
     if (has(s.fx, 's_stash') && s.owner === this.me) tag('📦', 0, -4);
     if (lift) tag('🪐', 0, -34);
@@ -972,7 +972,7 @@ export class Renderer {
       case 'eaten': { const b = B(e.b); if (b) this.text(b.x + rand(-14, 14), b.y - b.radius * 1.6, `🪱 -${e.n}`, '#fff', 14, '#6a4a2a'); break; }
       case 'wormout': { const b = B(e.b); if (b) { this.burst(b.x, b.y - 10, { n: lowFx ? 10 : 34, colors: ['#c9a46a', '#8a6a3a', '#fff'], speed: 200, life: 0.9, size: 6, kind: 'puff' }); this.text(b.x, b.y - b.radius * 2.3, `🏜️ ${e.n} sand cats!`, '#fff', 16, '#8a6a3a', 1.4); this.shake = Math.max(this.shake, 8); } break; }
       case 'sandend': this.burst(e.x, e.y, { n: lowFx ? 8 : 30, colors: ['#e0c38a', '#c9a46a'], speed: 180, life: 0.8, size: 5, kind: 'puff' }); break;
-      case 'lift': { const b = B(e.b); if (b) { this.ring(b.x, b.y, b.radius * 2, '#9a8a70', 0.5, 6); this.emoji(b.x, b.y - b.radius * 2, '🍲', 26, 1); } break; }
+      case 'lift': { const b = B(e.b); if (b) { this.ring(b.x, b.y, b.radius * 2, '#b08a5a', 0.5, 6); this.emoji(b.x, b.y - b.radius * 2, '🐦', 26, 1); } break; }
     }
   }
   homeOf(V, o) {
@@ -1026,10 +1026,11 @@ export class Renderer {
       case 'gold': this.screenText('🏆', 'GOLDEN PURR!', e.o); break;
       case 'fort': this.screenText('🏰', 'FORTRESS!', e.o); for (const q of myB) this.ring(q.x, q.y, q.radius * 2, c.light, 0.6, 5); break;
       case 'glacier': this.screenText('🏔️', 'BIG FREEZE!', e.o); break;
-      case 'blood': this.screenText('🩸', 'BLOOD PACT!', e.o); break;
-      case 'steal': this.screenText('🎒', e.res ? `COPIED ${String(e.res).toUpperCase()}!` : 'COPY CAT!', e.o); break;
-      case 'ghosts': case 'bones': this.burst(x, y - 20, { n: lowFx ? 6 : 20, colors: ['#e6e9ff', '#b8b0d8', '#fff'], speed: 130, life: 0.9, size: 6, kind: 'puff' }); this.emoji(x, y - 80, sp.icon || '👻', 32, 1.2); break;
-      case 'cauldron': this.emoji(x, y - 80, '🍲', 38, 1.4); this.ring(x, y, 90, '#5a5048', 0.7, 8); this.shake = Math.max(this.shake, 6); break;
+      case 'blood': this.screenText('🦢', 'SWAN SONG!', e.o); break;
+      case 'steal': this.screenText('🦜', e.res ? `COPIED ${String(e.res).toUpperCase()}!` : 'MOCKINGBIRD!', e.o); break;
+      case 'bones': this.burst(x, y - 30, { n: lowFx ? 6 : 22, colors: ['#ffd84a', '#7cc8ff', '#ffffff', '#ff9a3d'], speed: 150, life: 0.9, size: 4, kind: 'star' }); this.emoji(x, y - 80, '🐦', 32, 1.2); break;
+      case 'ghosts': this.burst(x, y - 20, { n: lowFx ? 6 : 20, colors: ['#e6e9ff', '#b8b0d8', '#fff'], speed: 130, life: 0.9, size: 6, kind: 'puff' }); this.emoji(x, y - 80, sp.icon || '👻', 32, 1.2); break;
+      case 'cauldron': this.emoji(x, y - 80, '🪺', 38, 1.4); this.ring(x, y, 90, '#8a6a3a', 0.7, 8); this.shake = Math.max(this.shake, 6); break;
       case 'thief': this.emoji(x, y - 80, '💰', 34, 1.3); if (e.res) this.text(x, y - 110, `+${e.res} purr`, '#fff', 16, '#b8851d', 1.4); break;
       case 'mean': this.emoji(x, y - 80, '⚖️', 34, 1.3); if (e.res) this.text(x, y - 110, `all ${e.res}`, '#fff', 16, '#4b2a8a', 1.4); break;
       case 'possess': this.emoji(x, y - 80, '🎭', 34, 1.3); this.ring(x, y, 90, c.main, 0.7, 6); break;
@@ -1381,15 +1382,39 @@ export class Renderer {
     }
     ctx.restore();
   }
-  /** Big Cauldron: a pot sitting over the building */
+  /** Giant Nest: a woven twig nest sitting over the building, with eggs and a bird on the rim */
   cauldronFx(ctx, b, t) {
-    const r = b.radius * 1.15, y = b.y - b.radius * 0.35;
+    const r = b.radius * 1.2, y = b.y - b.radius * 0.3;
     ctx.save();
-    ctx.fillStyle = '#2f2b33'; ctx.strokeStyle = '#121016'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.ellipse(b.x, y, r, r * 0.85, 0, 0, Math.PI); ctx.lineTo(b.x - r, y); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(b.x, y, r * 1.02, r * 0.3, 0, 0, TAU); ctx.fillStyle = '#45404a'; ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(b.x, y, r * 0.85, r * 0.22, 0, 0, TAU); ctx.fillStyle = '#6fd65a'; ctx.fill();
-    for (let k = 0; k < 4; k++) { const ph = (t * 0.9 + k / 4) % 1; ctx.fillStyle = `rgba(160,240,120,${1 - ph})`; ctx.beginPath(); ctx.arc(b.x + Math.sin(k * 2.3) * r * 0.5, y - ph * 26, 3 + ph * 3, 0, TAU); ctx.fill(); }
+    // the bowl
+    ctx.beginPath(); ctx.ellipse(b.x, y, r, r * 0.75, 0, 0, Math.PI); ctx.lineTo(b.x - r, y); ctx.closePath();
+    ctx.fillStyle = '#8a6236'; ctx.fill(); ctx.strokeStyle = '#4a3218'; ctx.lineWidth = 2.5; ctx.stroke();
+    // woven twigs
+    ctx.save(); ctx.clip();
+    ctx.strokeStyle = '#c99a5a'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    for (let k = 0; k < 7; k++) {
+      const yy = y + k * r * 0.11, dx = (k % 2 ? 0.16 : -0.12) * r;
+      ctx.beginPath(); ctx.moveTo(b.x - r + dx, yy); ctx.quadraticCurveTo(b.x, yy + r * 0.12, b.x + r + dx, yy - r * 0.04); ctx.stroke();
+    }
+    ctx.restore();
+    // the rim and the hollow
+    ctx.beginPath(); ctx.ellipse(b.x, y, r * 1.04, r * 0.3, 0, 0, TAU); ctx.fillStyle = '#a77a44'; ctx.fill(); ctx.strokeStyle = '#4a3218'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(b.x, y, r * 0.78, r * 0.2, 0, 0, TAU); ctx.fillStyle = '#5a3c1e'; ctx.fill();
+    // twigs poking out
+    ctx.strokeStyle = '#6b4a26'; ctx.lineWidth = 1.6;
+    for (const [a, l] of [[-2.7, 0.35], [-0.5, 0.3], [0.4, 0.32], [2.9, 0.38]]) { const sx = b.x + Math.cos(a) * r, sy = y + Math.sin(a) * r * 0.3; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(a) * r * l, sy + Math.sin(a) * r * l * 0.5 - 2); ctx.stroke(); }
+    // three speckled eggs
+    for (const [ex, ey] of [[-0.32, -0.02], [0.02, -0.08], [0.33, -0.01]]) {
+      ctx.beginPath(); ctx.ellipse(b.x + ex * r, y + ey * r, r * 0.15, r * 0.19, 0, 0, TAU); ctx.fillStyle = '#bfe6ff'; ctx.fill(); ctx.strokeStyle = '#4a6a80'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#5a7a92'; ctx.beginPath(); ctx.arc(b.x + ex * r - 1.5, y + ey * r - 1.5, 1, 0, TAU); ctx.arc(b.x + ex * r + 2, y + ey * r + 1, 0.8, 0, TAU); ctx.fill();
+    }
+    // a little yellow bird on the rim, bobbing and chirping
+    const bx = b.x + r * 0.82, by = y - r * 0.2 - Math.abs(Math.sin(t * 3)) * 3;
+    ctx.beginPath(); ctx.ellipse(bx, by, 6, 4.5, 0, 0, TAU); ctx.fillStyle = '#ffd84a'; ctx.fill(); ctx.strokeStyle = '#7a5a10'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(bx + 4.5, by - 3.5, 3.4, 0, TAU); ctx.fillStyle = '#ffd84a'; ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx + 7.4, by - 4.4); ctx.lineTo(bx + 10.6, by - 3.6); ctx.lineTo(bx + 7.4, by - 2.6); ctx.closePath(); ctx.fillStyle = '#ff8a1f'; ctx.fill();
+    ctx.beginPath(); ctx.arc(bx + 5.4, by - 4.2, 0.9, 0, TAU); ctx.fillStyle = '#1a1418'; ctx.fill();
+    if (Math.sin(t * 2.2) > 0.4) { ctx.font = FONT(400, 11); ctx.textAlign = 'center'; ctx.fillStyle = '#ffffff'; ctx.fillText('♪', bx + 12, by - 10 - (t % 1) * 4); }
     ctx.restore();
   }
   /** Hypnotize: a slow spiral over the building waiting for your order */

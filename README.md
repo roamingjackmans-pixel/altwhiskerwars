@@ -58,7 +58,7 @@ same site without touching each other.
 | 🤘 Gutter Punks | 👁 Morrow | Soul Snatcher (tower range up, kills join it), Untouchable, Slow-Mo Ring, Food Poisoning (garrison sickens, spreads, count revealed) |
 | | Ironclaw | Iron Seal (building loses a share of its cats every second), Mine Field (enemy cats become mines), Purr Thief (steal up to one star), Soul Harvest (cats knocked out nearby come back as yours) |
 | | Baron Bones | Second Life (revive cats lost in the last 5s), Crumble (building drops a level), Go Home (area: everyone turns back), Panic (garrison flees) |
-| | Miss Maisu | Copy Cat (use a rival's last skill once), Bone Rush (skeletons attack an enemy building), Blood Pact (lost cats earn purr), Big Cauldron (an enemy building becomes a sealed level-1 stray) |
+| | Miss Maisu | Mockingbird (use a rival's last skill once), Flock Drop (birds drop cats beside an enemy building), Swan Song (lost cats earn purr), Giant Nest (an enemy building becomes a sealed level-1 stray) |
 | | Jinx | Defectors (enemy kittens walk to you), Charm Shield (no attacks allowed, attackers bounce home), Swap! (trade an enemy building for one of yours), Echo Hex (damage copied to nearby buildings) |
 | | Riddle | Each slot is a random hero's skill for that slot, rolled at the start of every battle |
 

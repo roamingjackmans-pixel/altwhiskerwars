@@ -65,7 +65,7 @@ export class Hud {
     };
     const hero = heroById(P[me].hero) || HEROES[0];
     this.hero = hero;
-    // this battle's skills (Riddle rolls random ones; Copy Cat swaps its button for the copied skill)
+    // this battle's skills (Riddle rolls random ones; Mockingbird swaps its button for the copied skill)
     this.sk = [0, 1, 2, 3].map(k => this.m.mySlotSpell(k)).filter(Boolean);
     const phone = this.phone = !!this.m.phone;
     if (phone) this.root.classList.add('phone');
@@ -464,7 +464,7 @@ export class Hud {
     this.root.classList.toggle('glaciated', !!me.glacier);
     this.sk.forEach((s0, k) => {
       const b = this.els.spells[k];
-      // Copy Cat: the button turns into the copied skill until it is used
+      // Mockingbird: the button turns into the copied skill until it is used
       const s = this.m.mySkill(k) || s0;
       if (s.id !== s0.id) {
         this.sk[k] = s;

@@ -76,7 +76,7 @@ function trySkill(h, slot, seed) {
   if (sp.id === 'steal') {
     // now cast the copied skill
     const st = g.spell(0, slot);
-    if (!st || !st.stolen) { fails++; console.log(`✗ ${h.name} Copy Cat did not copy anything`); return; }
+    if (!st || !st.stolen) { fails++; console.log(`✗ ${h.name} Mockingbird did not copy anything`); return; }
     p.catnip = 100; p.gcd = 0;
     g.command(0, { k: 'spell', slot, b: mine().id });
     if (p.stolen) { fails++; console.log(`✗ ${h.name} copied skill could not be used`); return; }

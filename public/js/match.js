@@ -386,7 +386,7 @@ export class Match {
           ufo: 'ufo', pulse: 'buff', aura: 'shield', grav: 'ufo', chill: 'freeze', wave: 'freeze', glacier: 'freeze', hail: 'freeze',
           qsand: 'curse', unity: 'warp', wind: 'buff', worm: 'vacuum', totem: 'buff', stones: 'buff', rain: 'magic', sand: 'vacuum',
           haunt: 'magic', possess: 'curse', redirect: 'warp', ghosts: 'magic', seal: 'curse', mines: 'cannon', thief: 'coin', reap: 'heal',
-          bones: 'hiss', steal: 'coinflip', blood: 'curse', cauldron: 'curse',
+          bones: 'buff', steal: 'coinflip', blood: 'magic', cauldron: 'smoke',
           kboom: 'heal', hush: 'snore', paper: 'magic', charm: 'meow', freeze: 'freeze', fly: 'buff', frost: 'freeze', tornado: 'vacuum',
           vortex: 'buff', pfreeze: 'freeze', chicken: 'magic', magnet: 'ufo', crumble: 'explosion', revive: 'heal', home: 'warp', panic: 'hiss',
           soul: 'magic', invuln: 'shield', slowmo: 'magic', plague: 'curse', defect: 'meow', bounce: 'shield', swap: 'coinflip', echo: 'curse',
@@ -416,7 +416,7 @@ export class Match {
 
   // ---------- helpers for UI ----------
   myHero() { return heroById(this.info.players[this.me].hero) || HEROES[0]; }
-  /** one of my skills this battle, with its numbers at my level (Copy Cat shows the copied skill once it has one) */
+  /** one of my skills this battle, with its numbers at my level (Mockingbird shows the copied skill once it has one) */
   mySkill(slot) {
     const me = this.view && this.view.players[this.me];
     const base = this.mySlotSpell(slot);

@@ -82,7 +82,7 @@ export class Game {
         fur: p.fur, hat: p.hat, ai: p.ai || null, skills,
         catnip: START_CATNIP, purr: PURR.start, purrLock: 0, silenced: 0, cds: [0, 0, 0, 0], gcd: 0, alive: true, scoutUntil: 0, scoutCd: 0,
         lastAction: 0, lastEmote: -9,
-        // Copy Cat: the slot it lives in and the skill it copied (used once)
+        // Mockingbird: the slot it lives in and the skill it copied (used once)
         stealSlot: slots.findIndex(s => s.sp.id === 'steal'), stolen: null, lastCast: null,
         goldUntil: 0, glacierUntil: 0, bloodUntil: 0, bloodPurr: 0, redirect: null, cauldron: -1, transferTo: -1, hypno: -1,
         bonusProd: p.ai && AI_LEVELS[p.ai] ? (AI_LEVELS[p.ai].bonusProd || 0) : 0,
@@ -115,7 +115,7 @@ export class Game {
   // ---------- helpers ----------
   P(i) { return this.players[i]; }
   hero(i) { return this.players[i].hero; }
-  /** a skill in one of a player's slots, with its numbers at their level (Copy Cat swaps in the copied skill) */
+  /** a skill in one of a player's slots, with its numbers at their level (Mockingbird swaps in the copied skill) */
   spell(i, slot) {
     const p = this.players[i];
     if (!p) return null;
@@ -302,7 +302,7 @@ export class Game {
   cmdSend(i, c) {
     const to = this.byId.get(c.to);
     if (!to || !Array.isArray(c.from)) return;
-    if (this.fx(to, 'cauldron')) return this.err(i, 'That building is under a cauldron!');
+    if (this.fx(to, 'cauldron')) return this.err(i, 'That building is stuck in a giant nest!');
     // Charm Shield: rivals can't send attacks at it
     if (to.owner >= 0 && to.owner !== i && this.fx(to, 'bounce')) return this.err(i, 'That building is charmed: no attacks right now!');
     const pct = clamp(Number(c.pct) || 0.5, 0.05, 1);
@@ -501,7 +501,7 @@ export class Game {
     const sp = this.spell(i, slot);
     if (!sp) return;
     if (p.silenced > this.time) return this.err(i, 'Hush! No skills right now');
-    // a copied skill can be used while Copy Cat itself recharges
+    // a copied skill can be used while Mockingbird itself recharges
     if ((p.cds[slot] > 0 && !sp.stolen) || p.gcd > 0) return this.err(i, 'Skill is recharging');
     if (p.catnip < sp.cost) return this.err(i, 'Not enough catnip!');
     let b = null, x = Number(c.x), y = Number(c.y);
@@ -509,7 +509,7 @@ export class Game {
       b = this.byId.get(c.b);
       if (!b) return;
       if (!targetOk(sp.target, b, i)) return this.err(i, 'Pick a glowing building');
-      if (this.fx(b, 'cauldron')) return this.err(i, 'That building is under a cauldron');
+      if (this.fx(b, 'cauldron')) return this.err(i, 'That building is stuck in a giant nest');
       x = b.x; y = b.y;
     } else if (sp.target === 'area') {
       if (!isFinite(x) || !isFinite(y)) return;
@@ -572,7 +572,7 @@ export class Game {
     p.stats.lost += n;
     if (killer >= 0 && killer !== owner) this.players[killer].stats.killed += n;
     const vsRival = killer >= 0 && killer !== owner;
-    // Blood Pact: every lost cat earns Purr Power instead
+    // Swan Song: every lost cat earns Purr Power instead
     const blood = p.bloodUntil > this.time;
     if (blood) this.addPurr(owner, p.bloodPurr * n);
     if ((kind === 'attack' || kind === 'field' || kind === 'tower') && vsRival) {
@@ -986,7 +986,7 @@ export class Game {
       }
       case 'bloodpact': p.bloodUntil = Math.max(p.bloodUntil, t + dur); p.bloodPurr = sp.purr; return;
       case 'cauldron': {
-        // lift the cauldron off the last building
+        // lift the nest off the last building
         if (p.cauldron >= 0) { const o = this.byId.get(p.cauldron); if (o && this.fx(o, 'cauldron')) { o.fx.cauldron = 0; o.fxp.cauldron = null; this.emit({ k: 'lift', b: o.id }); } }
         const prev = b.owner;
         b.owner = -1; b.level = 1;
@@ -1255,7 +1255,7 @@ export class Game {
   // ---------- combat ----------
   arrive(s, b) {
     const i = s.owner;
-    // Big Cauldron: nobody gets in
+    // Giant Nest: nobody gets in
     if (this.fx(b, 'cauldron')) {
       if (s.id != null && this.turnHome(s, 0.3)) { this.squads.push(s); return; }
       if (i >= 0) this.onLosses(i, s.count, b.x, b.y, -1, 'spell');
@@ -1575,7 +1575,7 @@ export class Game {
           this.players[b.owner].stats.produced += add;
         }
       }
-      // towers (an unowned tower shoots at everyone's cats until somebody takes it; one under a cauldron can't)
+      // towers (an unowned tower shoots at everyone's cats until somebody takes it; one in a giant nest can't)
       const bt = this.btype(b), tdef = BUILDINGS[bt];
       const stray = b.owner < 0;
       if (tdef.range && (!stray || bt === 'tower') && b.count >= 1 && !this.fx(b, 'frozen') && !this.fx(b, 'cauldron')) {
@@ -1743,7 +1743,7 @@ export class Game {
         (p.scoutUntil > t ? PF.scouting : 0) | (p.silenced > t ? PF.silenced : 0) | (p.purrLock > t ? PF.purrLock : 0)
           | (p.goldUntil > t ? PF.golden : 0) | (p.glacierUntil > t ? PF.glacier : 0) | (p.bloodUntil > t ? PF.blood : 0),
         p.alive ? 1 : 0, Math.round(this.armyOf(p.idx)), this.stars(p.idx), r1(p.gcd), r1(p.scoutCd), r1(p.cds[3]),
-        // Copy Cat: the copied skill and its level; Hypnotize: the building waiting for your order
+        // Mockingbird: the copied skill and its level; Hypnotize: the building waiting for your order
         p.stolen ? p.stolen.id : '', p.stolen ? p.stolen.lv : 0, p.hypno,
       ]),
       // [kind, x, y, r, owner, seconds left, direction (degrees), lane half-width]

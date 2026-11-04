@@ -773,7 +773,7 @@ function furDetails(ctx, P, reg, part, fo, seed) {
     if (pat === 'tuxedo') {
       ctx.fillStyle = '#ffffff';
       ell(ctx, fx, fy + 3.6, 4.5, 3.4); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(fx - 1.1, fy + 1.5); ctx.lineTo(fx, fy - 2.6); ctx.lineTo(fx + 1.1, fy + 1.5); ctx.closePath(); ctx.fill();
+      if (!P.noBlaze) { ctx.beginPath(); ctx.moveTo(fx - 1.1, fy + 1.5); ctx.lineTo(fx, fy - 2.6); ctx.lineTo(fx + 1.1, fy + 1.5); ctx.closePath(); ctx.fill(); }
     } else if (P.belly !== P.base && pat !== 'galaxy' && pat !== 'void' && pat !== 'points') {
       ell(ctx, fx, fy + 3.3, 3.5, 2.4); ctx.fillStyle = P.belly; ctx.fill();
     }
@@ -3403,7 +3403,7 @@ const LOOKS = {
   rift: ['#1c1f2e', '#7d5cff'], orbit: ['#eef1f6', '#ff5fa2'], whirl: ['#5b2f8f', '#ffd447'], glacia: ['#bfe4ff', '#ffffff'],
   pebble: ['#9a6a3a', '#f4e2c0'], willow: ['#3f7a4a', '#c9e48a'], saffron: ['#e07b2c', '#ffe08a'], marigold: ['#7a2f8f', '#ffffff'],
   honeydew: ['#ffd447', '#2a2a2a'], wispera: ['#1f5a5a', '#9ff0e0'], morrow: ['#2b2333', '#8fff9a'], ironclaw: ['#6f7682', '#3a3f4a'],
-  bones: ['#2a2430', '#f4efe2'], cackle: ['#4a5a2a', '#c0a0ff'], jinx: ['#7a3fbf', '#ff8a3d'], riddle: ['#f4f4f4', '#1a1a22'],
+  bones: ['#2a2430', '#f4efe2'], cackle: ['#3a8fd6', '#ffd447'], jinx: ['#7a3fbf', '#ff8a3d'], riddle: ['#f4f4f4', '#1a1a22'],
 };
 function outfit(ctx, id, P) {
   const body = () => ell(ctx, 0, 15, 10.6, 6.8);
@@ -3547,12 +3547,22 @@ function outfit(ctx, id, P) {
       ctx.beginPath(); ctx.moveTo(0, 10); ctx.lineTo(0, 20); ctx.stroke();
       for (const y of [11.6, 14, 16.4]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.quadraticCurveTo(-3.4, y - 0.8, -4.6, y + 1); ctx.moveTo(0, y); ctx.quadraticCurveTo(3.4, y - 0.8, 4.6, y + 1); ctx.stroke(); }
       break;
-    case 'cackle':
-      ctx.fillStyle = shade(f, -0.25); for (let k = -11; k < 11; k += 2.6) { ctx.beginPath(); ctx.moveTo(k, 20); ctx.lineTo(k + 1.3, 22.5); ctx.lineTo(k + 2.6, 20); ctx.closePath(); ctx.fill(); }
+    case 'cackle': {
+      // a sky-blue coat left open over her white chest, a feather fringe, and a little bird whistle on a cord
+      ctx.beginPath(); ctx.moveTo(-4.6, 7.6); ctx.quadraticCurveTo(-3.2, 16, -1.6, 23); ctx.lineTo(1.6, 23); ctx.quadraticCurveTo(3.2, 16, 4.6, 7.6); ctx.closePath();
+      ctx.fillStyle = '#ffffff'; ctx.fill();
+      ctx.strokeStyle = trim; ctx.lineWidth = 0.9; ctx.lineCap = 'round';
+      for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sx * 4.6, 7.6); ctx.quadraticCurveTo(sx * 3.2, 16, sx * 1.6, 23); ctx.stroke(); }
+      ctx.fillStyle = shade(f, -0.25);
+      for (let k = -11; k < 11; k += 2.6) { if (Math.abs(k + 1.3) < 3) continue; ctx.beginPath(); ctx.moveTo(k, 20); ctx.lineTo(k + 1.3, 22.5); ctx.lineTo(k + 2.6, 20); ctx.closePath(); ctx.fill(); }
       ctx.strokeStyle = '#7a5a3a'; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.arc(0, 7, 5.5, 0.4, Math.PI - 0.4); ctx.stroke();
-      for (const [x, y] of [[-3.8, 10.8], [0, 12.4], [3.8, 10.8]]) { capsule(ctx, x - 0.9, y, x + 0.9, y, 0.45); ctx.fillStyle = '#f4efe2'; ctx.fill(); }
-      ctx.fillStyle = trim; circ(ctx, -6.5, 16, 1); ctx.fill(); circ(ctx, 6.6, 18, 0.8); ctx.fill();
+      // the whistle: a tiny yellow bird
+      ell(ctx, 0, 12.6, 1.5, 1.1); sf(ctx, '#ffd447', '#8a6410', 0.35);
+      circ(ctx, 1.2, 11.8, 0.8); sf(ctx, '#ffd447', '#8a6410', 0.35);
+      ctx.beginPath(); ctx.moveTo(1.9, 11.6); ctx.lineTo(2.9, 11.9); ctx.lineTo(1.9, 12.2); ctx.closePath(); ctx.fillStyle = '#ff8a1f'; ctx.fill();
+      ctx.fillStyle = trim; circ(ctx, -6.8, 15, 0.9); ctx.fill(); circ(ctx, 6.8, 15, 0.9); ctx.fill();
       break;
+    }
     case 'jinx': {
       // harlequin diamonds
       for (let r = 0; r < 4; r++) for (let c = -4; c < 5; c++) {
@@ -3844,19 +3854,22 @@ function heroAccessory(ctx, id, P, hy, rx, ry) {
       break;
     }
     case 'cackle': {
-      // a feather headdress with a bone through it
-      for (const [x, rot, col] of [[-3.6, -0.35, '#c8323c'], [0, 0, '#1a1418'], [3.6, 0.35, trim]]) {
-        ctx.save(); ctx.translate(x, hy - 7.4); ctx.rotate(rot);
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-2.4, -5, 0, -9.4); ctx.quadraticCurveTo(2.4, -5, 0, 0); ctx.closePath(); sf(ctx, col, OL, 0.8);
-        ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 0.3; ctx.beginPath(); ctx.moveTo(0, -0.4); ctx.lineTo(0, -8.6); ctx.stroke();
-        ctx.restore();
-      }
-      rr(ctx, -7.6, hy - 8.2, 15.2, 2.4, 1); sf(ctx, f, OL, L);
-      for (const x of [-5, -2.5, 0, 2.5, 5]) { circ(ctx, x, hy - 7, 0.5); ctx.fillStyle = trim; ctx.fill(); }
-      ctx.save(); ctx.translate(0, hy - 10.6); ctx.rotate(-0.25);
-      capsule(ctx, -6.4, 0, 6.4, 0, 0.7); sf(ctx, '#f4efe2', '#5a5248', 0.6);
-      for (const s of [-1, 1]) { circ(ctx, s * 6.6, -0.8, 1); circ(ctx, s * 6.6, 0.8, 1); ctx.fillStyle = '#f4efe2'; ctx.fill(); }
-      ctx.restore();
+      // a little yellow songbird perched on her head, chirping away
+      const bx = 1.4, by = hy - 8.4;
+      ctx.beginPath(); ctx.moveTo(bx - 2.4, by + 0.2); ctx.lineTo(bx - 5.6, by - 1.2); ctx.lineTo(bx - 5.0, by + 1.6); ctx.closePath(); sf(ctx, '#e0a800', OL, 0.6);
+      ell(ctx, bx, by, 3.2, 2.4); sf(ctx, '#ffd84a', OL, 0.7);
+      ell(ctx, bx - 0.7, by + 0.1, 1.9, 1.1, -0.3); sf(ctx, '#f0b400', OL, 0.45);
+      circ(ctx, bx + 2.5, by - 1.9, 1.9); sf(ctx, '#ffd84a', OL, 0.7);
+      ctx.beginPath(); ctx.moveTo(bx + 4.1, by - 2.5); ctx.lineTo(bx + 6.0, by - 2.9); ctx.lineTo(bx + 4.3, by - 1.8); ctx.closePath(); sf(ctx, '#ff8a1f', OL, 0.4);
+      ctx.beginPath(); ctx.moveTo(bx + 4.3, by - 1.7); ctx.lineTo(bx + 5.8, by - 1.1); ctx.lineTo(bx + 4.1, by - 1.2); ctx.closePath(); sf(ctx, '#ff8a1f', OL, 0.4);
+      circ(ctx, bx + 2.9, by - 2.3, 0.42); ctx.fillStyle = '#1a1418'; ctx.fill();
+      circ(ctx, bx + 3.05, by - 2.45, 0.14); ctx.fillStyle = '#ffffff'; ctx.fill();
+      ctx.strokeStyle = '#ff8a1f'; ctx.lineWidth = 0.45; ctx.lineCap = 'round';
+      for (const fx of [-0.6, 0.9]) { ctx.beginPath(); ctx.moveTo(bx + fx, by + 2.2); ctx.lineTo(bx + fx, by + 3.2); ctx.stroke(); }
+      // a music note
+      ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.4;
+      ell(ctx, bx + 5.4, by - 4.6, 0.75, 0.55, -0.4); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(bx + 6.05, by - 4.8); ctx.lineTo(bx + 6.05, by - 7.4); ctx.lineTo(bx + 7.2, by - 6.7); ctx.stroke();
       break;
     }
     case 'jinx': {
@@ -3891,7 +3904,12 @@ function heroAccessory(ctx, id, P, hy, rx, ry) {
   }
 }
 const LASHES = new Set(['marigold', 'honeydew', 'glacia', 'wispera', 'pebble', 'saffron', 'willow', 'orbit']);
+// heroes whose portrait face differs from their fur's usual look
+const HERO_FACE = {
+  cackle: { glowEye: true, glow: '#ffd21f', glowShadow: '#ffb800', pupil: '#16121a', noBlaze: true },
+};
 function drawHeroBust(ctx, h, P) {
+  if (HERO_FACE[h.id]) P = { ...P, ...HERO_FACE[h.id] };
   const hy = 3.4;
   const big = h.id === 'thunderpurr' || h.id === 'ironclaw';
   const rx = big ? 8.6 : 7.9, ry = big ? 7.5 : 7.2;
